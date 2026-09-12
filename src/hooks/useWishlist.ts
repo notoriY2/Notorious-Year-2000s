@@ -93,8 +93,26 @@ export const useWishlist = (userId: string | null) => {
         error: productError,
       } = await supabase
         .from('products')
-        .select('*')
-        .in('id', productIds);
+.select(`
+  id,
+  slug,
+  name,
+  price,
+  image,
+  images,
+  category,
+  sold_out,
+  position_top,
+  position_left,
+  mobile_position_top,
+  mobile_position_left,
+  rotation,
+  scale,
+  z_index,
+  show_on_floor,
+  is_staged
+`)
+.in('id', productIds);
 
       if (productError) {
         console.error(

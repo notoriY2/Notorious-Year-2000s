@@ -6,6 +6,7 @@ import {
   type HeroSectionSettings,
 } from '../data/storeSettings';
 import type { Product } from '../types/Product';
+import { optimizeImage } from '../lib/imageOptimizer';
 
 interface HeroSectionProps {
   override?: HeroSectionSettings;
@@ -143,8 +144,10 @@ const HeroSection: React.FC<HeroSectionProps> = ({
           {displayImage ? (
             <div className="relative w-full aspect-[4/5]">
               <img
-                src={displayImage}
+                src={optimizeImage(displayImage, 800)}
                 alt={settings.headline || 'Hero'}
+                width={800}
+                height={1000}
                 className="absolute inset-0 w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
@@ -255,8 +258,10 @@ const HeroSection: React.FC<HeroSectionProps> = ({
           {displayImage && (
             <div className="order-first md:order-last flex justify-center w-full mb-4 md:mb-0 relative z-10">
               <img
-                src={displayImage}
+                src={optimizeImage(displayImage, 1200)}
                 alt={settings.headline || 'Hero'}
+                width={1200}
+                height={1200}
                 className="w-full h-auto max-h-[300px] sm:max-h-[420px] lg:max-h-[520px] object-contain"
               />
             </div>

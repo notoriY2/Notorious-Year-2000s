@@ -329,25 +329,40 @@ export const useCart = (
             cartId;
 
           const {
-            data,
-            error,
-          } = await supabase
-            .from('cart_items')
-            .select(
-              `
-                id,
-                product_id,
-                quantity,
-                selected_size,
-                selected_color,
-                price_at_add,
-                products(*)
-              `
-            )
-            .eq(
-              'cart_id',
-              cartId
-            );
+  data,
+  error,
+} = await supabase
+  .from('cart_items')
+  .select(
+    `
+      id,
+      product_id,
+      quantity,
+      selected_size,
+      selected_color,
+      price_at_add,
+      products (
+        id,
+        slug,
+        name,
+        price,
+        image,
+        images,
+        category,
+        sold_out,
+        position_top,
+        position_left,
+        mobile_position_top,
+        mobile_position_left,
+        rotation,
+        scale,
+        z_index,
+        show_on_floor,
+        is_staged
+      )
+    `
+  )
+  .eq('cart_id', cartId);
 
           if (error) {
             throw error;

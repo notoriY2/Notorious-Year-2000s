@@ -33,7 +33,7 @@
 // of usable connections, so keep this conservative. Raise it once
 // you've confirmed your pool/statement_timeout can comfortably absorb
 // more concurrent requests.
-const MAX_CONCURRENT_REQUESTS = 8;
+const MAX_CONCURRENT_REQUESTS = 6;
 
 let activeRequests = 0;
 const waitQueue: Array<() => void> = [];

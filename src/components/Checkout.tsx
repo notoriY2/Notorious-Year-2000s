@@ -3,6 +3,7 @@
 import React, {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -28,12 +29,15 @@ import {
 
 import {
   createOrder,
+  claimGuestOrder, 
   CreateOrderPayload,
   CreateOrderItemInput,
 } from '../data/admin';
 
+import SizeGuideModal from './SizeGuideModal';
 import { trackEvent } from '../lib/analytics'
-
+// Add near the top of Checkout.tsx, with the other imports:
+import { openSupportChat } from '../lib/supportChatBus';
 import { supabase } from '../lib/supabase';
 
 /* =========================================================
@@ -125,6 +129,7 @@ const Checkout: React.FC<
   /* =======================================================
      FORM STATE
   ======================================================= */
+const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   const [
     formData,
@@ -208,14 +213,37 @@ const Checkout: React.FC<
     setLoginError,
   ] = useState('');
 
+  const [lastOrderId, setLastOrderId] = useState('');
   const [discountCode, setDiscountCode] = useState('');
 const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; type: string; value: number } | null>(null);
 const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
+const [showSizeGuide, setShowSizeGuide] = useState(false);
+const [showAccountPrompt, setShowAccountPrompt] = useState(false);
+const [conversionPassword, setConversionPassword] = useState('');
+const [conversionStatus, setConversionStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+const [sessionId] = useState(() => crypto.randomUUID());
+const [discountError, setDiscountError] = useState('');
 
 const handleApplyDiscount = async () => {
+  setDiscountError('');
+  
+  const { data: allowed, error: rpcError } = await supabase.rpc('check_discount_rate_limit', {
+    p_session_id: sessionId,
+  });
+
+  if (rpcError || allowed === false) {
+    setDiscountError('Too many attempts, try again shortly');
+    return;
+  }
+
   const { data } = await supabase
     .from('discounts').select('*').eq('code', discountCode.trim().toUpperCase()).eq('status', 'Active').maybeSingle();
-  if (data) setAppliedDiscount({ code: data.code, type: data.type, value: Number(data.value) });
+  
+  if (data) {
+    setAppliedDiscount({ code: data.code, type: data.type, value: Number(data.value) });
+  } else {
+    setDiscountError('Invalid or expired discount code');
+  }
 };
   /* =======================================================
      CHECKOUT STATE
@@ -466,6 +494,7 @@ const total = subtotal + shipping + tax - discountAmount;
         discountCode: appliedDiscount?.code,
         discountAmount,
 
+        idempotencyKey: idempotencyKeyRef.current,
         // Notorious.Y2's storefront default currency (see
         // data/storeSettings.ts / store_info.currency). Checkout
         // doesn't currently receive the visitor's selected display
@@ -501,25 +530,22 @@ const total = subtotal + shipping + tax - discountAmount;
 
       // Real order number from the database (set_order_number()
       // trigger, format NY2-XXXXX) instead of a Date.now() stand-in.
-      setOrderNumber(
-        result.orderNumber
-      );
+      setOrderNumber(result.orderNumber);
+setLastOrderId(result.id);   // ADD THIS
+setIsProcessing(false);
+setOrderComplete(true);
 
-      setIsProcessing(false);
-      setOrderComplete(true);
+if (!user) {
+  setShowAccountPrompt(true);
+}
 
-      window.setTimeout(
-        () => {
-          onClose();
-
-          setOrderComplete(
-            false
-          );
-
-          setOrderNumber('');
-        },
-        3500
-      );
+      if (user) {
+  window.setTimeout(() => {
+    onClose();
+    setOrderComplete(false);
+    setOrderNumber('');
+  }, 3500);
+}
     } catch (error) {
       console.error(
         'Failed to place order:',
@@ -734,6 +760,8 @@ void completeOrder();
      ORDER COMPLETE
   ======================================================= */
 
+  // Snippet for CheckoutModal.tsx / Order Confirmation View
+
   if (orderComplete) {
     return (
       <div className="fixed inset-x-0 top-0 h-[100dvh] z-[100] bg-white overflow-y-auto">
@@ -782,6 +810,48 @@ void completeOrder();
                 #{orderNumber}
               </p>
             </div>
+
+            {showAccountPrompt && conversionStatus !== 'done' && (
+              <div className="border border-gray-200 p-5 mb-8 text-left">
+                <p className="text-sm font-medium mb-1">Create an account to track this order</p>
+                <p className="text-xs text-gray-500 mb-4">
+                  We'll use {formData.email} — just set a password.
+                </p>
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={conversionPassword}
+                  onChange={e => setConversionPassword(e.target.value)}
+                  className="w-full h-12 px-4 border border-gray-300 mb-3 focus:outline-none focus:border-black"
+                />
+                <button
+                  type="button"
+                  disabled={conversionStatus === 'loading' || !conversionPassword}
+                  onClick={async () => {
+                    if (!onSignUp) return;
+                    setConversionStatus('loading');
+                    try {
+                      await onSignUp(
+  formData.email,
+  conversionPassword,
+  `${formData.firstName} ${formData.lastName}`.trim()
+);
+setConversionStatus('done');
+await claimGuestOrder(lastOrderId, formData.email);
+                    } catch {
+                      setConversionStatus('idle');
+                    }
+                  }}
+                  className="w-full h-12 bg-black text-white text-sm tracking-wide disabled:opacity-50"
+                >
+                  {conversionStatus === 'loading' ? 'Creating...' : 'Create Account'}
+                </button>
+              </div>
+            )}
+
+            {conversionStatus === 'done' && (
+              <p className="text-sm text-green-600 mb-8">Account created — you're all set.</p>
+            )}
 
             <button
               type="button"
@@ -1684,137 +1754,103 @@ void completeOrder();
     </div>
 
     {formData.paymentMethod === 'credit_card' && (
-  <div className="p-5 space-y-4">
-    {/* Demo mode warning */}
-    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-      Demo mode — no real charge is made and card details aren't sent anywhere. Do not enter a real card number.
-    </div>
+      <div className="p-5 space-y-4">
+        {/* Demo mode warning */}
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+          Demo mode — no real charge is made and card details aren't sent anywhere. Do not enter a real card number.
+        </div>
 
-    {/* Card number */}
-    <div className="relative">
-      <input
-        type="text"
-        inputMode="numeric"
-        autoComplete="cc-number"
-        placeholder="Card number"
-        value={
-          formData.cardNumber
-        }
-        onChange={event =>
-          handleInputChange(
-            'cardNumber',
-            event.target
-              .value
-          )
-        }
-        className="w-full h-14 px-4 pr-12 border border-gray-300 focus:outline-none focus:border-black font-light"
-        required
-      />
+        {/* Card number */}
+        <div className="relative">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="cc-number"
+            placeholder="Card number"
+            value={formData.cardNumber}
+            onChange={event =>
+              handleInputChange('cardNumber', event.target.value)
+            }
+            className="w-full h-14 px-4 pr-12 border border-gray-300 focus:outline-none focus:border-black font-light"
+            required
+          />
 
-      <Lock
-        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-        size={18}
-        strokeWidth={
-          1.5
-        }
-      />
-    </div>
+          <Lock
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+            size={18}
+            strokeWidth={1.5}
+          />
+        </div>
 
-    {/* Expiry / CVV */}
-    <div className="grid grid-cols-2 gap-4">
-      <input
-        type="text"
-        inputMode="numeric"
-        autoComplete="cc-exp"
-        placeholder="MM / YY"
-        value={
-          formData.expirationDate
-        }
-        onChange={event =>
-          handleInputChange(
-            'expirationDate',
-            event.target
-              .value
-          )
-        }
-        className="w-full h-14 px-4 border border-gray-300 focus:outline-none focus:border-black font-light"
-        required
-      />
+        {/* Expiry / CVV */}
+        <div className="grid grid-cols-2 gap-4">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="cc-exp"
+            placeholder="MM / YY"
+            value={formData.expirationDate}
+            onChange={event =>
+              handleInputChange('expirationDate', event.target.value)
+            }
+            className="w-full h-14 px-4 border border-gray-300 focus:outline-none focus:border-black font-light"
+            required
+          />
 
-      <div className="relative">
+          <div className="relative">
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="cc-csc"
+              placeholder="Security code"
+              value={formData.securityCode}
+              onChange={event =>
+                handleInputChange('securityCode', event.target.value)
+              }
+              className="w-full h-14 px-4 pr-12 border border-gray-300 focus:outline-none focus:border-black font-light"
+              required
+            />
+
+            <Info
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+              size={17}
+            />
+          </div>
+        </div>
+
+        {/* Cardholder */}
         <input
           type="text"
-          inputMode="numeric"
-          autoComplete="cc-csc"
-          placeholder="Security code"
-          value={
-            formData.securityCode
-          }
+          autoComplete="cc-name"
+          placeholder="Name on card"
+          value={formData.nameOnCard}
           onChange={event =>
-            handleInputChange(
-              'securityCode',
-              event.target
-                .value
-            )
+            handleInputChange('nameOnCard', event.target.value)
           }
-          className="w-full h-14 px-4 pr-12 border border-gray-300 focus:outline-none focus:border-black font-light"
+          className="w-full h-14 px-4 border border-gray-300 focus:outline-none focus:border-black font-light"
           required
         />
 
-        <Info
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-          size={17}
-        />
+        {/* Billing */}
+        <label className="flex items-center gap-3 pt-1">
+          <input
+            type="checkbox"
+            checked={formData.useBillingAddress}
+            onChange={event =>
+              handleInputChange('useBillingAddress', event.target.checked)
+            }
+            className="w-4 h-4"
+            style={{
+              accentColor: '#B58627',
+            }}
+          />
+
+          <span className="text-sm text-gray-500 font-light">
+            Use shipping address as billing address
+          </span>
+        </label>
       </div>
-    </div>
-
-    {/* Cardholder */}
-    <input
-      type="text"
-      autoComplete="cc-name"
-      placeholder="Name on card"
-      value={
-        formData.nameOnCard
-      }
-      onChange={event =>
-        handleInputChange(
-          'nameOnCard',
-          event.target
-            .value
-        )
-      }
-      className="w-full h-14 px-4 border border-gray-300 focus:outline-none focus:border-black font-light"
-      required
-    />
-
-    {/* Billing */}
-    <label className="flex items-center gap-3 pt-1">
-      <input
-        type="checkbox"
-        checked={
-          formData.useBillingAddress
-        }
-        onChange={event =>
-          handleInputChange(
-            'useBillingAddress',
-            event.target
-              .checked
-          )
-        }
-        className="w-4 h-4"
-        style={{
-          accentColor:
-            '#B58627',
-        }}
-      />
-
-      <span className="text-sm text-gray-500 font-light">
-        Use shipping address
-        as billing address
-      </span>
-    </label>
-  </div>
-)}
+    )}
   </div>
 
   {/* Shop Pay */}
@@ -1823,14 +1859,11 @@ void completeOrder();
     <div className="flex items-center gap-3">
       <div className="bg-[#5a31f4] text-white px-3 py-1.5 text-sm font-bold">
         shop
-        <span className="font-normal">
-          Pay
-        </span>
+        <span className="font-normal">Pay</span>
       </div>
 
       <span className="text-sm text-gray-600 font-light">
-        Pay in full or in
-        installments.
+        Pay in full or in installments.
       </span>
     </div>
   </div>
@@ -1855,6 +1888,9 @@ void completeOrder();
     </div>
     {appliedDiscount && (
       <p className="text-xs text-green-600 font-medium">Applied {appliedDiscount.code}</p>
+    )}
+    {discountError && !appliedDiscount && (
+      <p className="text-xs text-red-600 font-medium">{discountError}</p>
     )}
   </div>
 </section>
@@ -2058,16 +2094,12 @@ void completeOrder();
                     </button>
 
                     <button
-                      type="button"
-                      onClick={() =>
-                        handleLinkClick(
-                          'https://notorious.y2.com/help'
-                        )
-                      }
-                      className="block text-left text-xs text-[#B58627] hover:text-black hover:underline transition-colors"
-                    >
-                      Help Center
-                    </button>
+  type="button"
+  onClick={() => openSupportChat()}
+  className="block text-left text-xs text-[#B58627] hover:text-black hover:underline transition-colors"
+>
+  Help Center
+</button>
                   </div>
                 </div>
 
@@ -2245,16 +2277,12 @@ void completeOrder();
                     </button>
 
                     <button
-                      type="button"
-                      onClick={() =>
-                        handleLinkClick(
-                          'https://notorious.y2.com/size-guide'
-                        )
-                      }
-                      className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
-                    >
-                      Size Guide
-                    </button>
+  type="button"
+  onClick={() => setShowSizeGuide(true)}
+  className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
+>
+  Size Guide
+</button>
 
                     <button
                       type="button"
@@ -2293,6 +2321,9 @@ void completeOrder();
                     </button>
                   </div>
                 )}
+
+
+                <SizeGuideModal isOpen={showSizeGuide} onClose={() => setShowSizeGuide(false)} />
               </div>
             </aside>
           </div>

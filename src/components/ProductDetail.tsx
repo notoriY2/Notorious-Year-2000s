@@ -1,5 +1,4 @@
 // src/components/ProductDetail.tsx
-
 import React, { useState, useEffect } from 'react';
 import {
   Heart,
@@ -13,12 +12,16 @@ import {
 } from 'lucide-react';
 
 import { Product } from '../types/Product';
+import { fetchRecommendationPool } from '../hooks/useProducts';
 import ImageGallery from './ImageGallery';
 import CurrencySelector from './CurrencySelector';
 import { Currency } from '../hooks/useCurrency';
 import { User as UserType } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useSwipeToDismiss } from '../hooks/useSwipeToDismiss';
+import { notifyWhenInStock } from '../data/stockNotifications';
+import SizeGuideModal from './SizeGuideModal';
+import { optimizeImage } from '../lib/imageOptimizer';
 
 import ShopFooter from './ShopFooter';
 
@@ -105,6 +108,10 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
     getDefaultSize(product)
   );
 
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
+  const [notifySize, setNotifySize] = useState<string | null>(null);
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [notifySent, setNotifySent] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -118,9 +125,38 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   const [mobileImageIndex, setMobileImageIndex] = useState(0);
 
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
-  
+
   const [showFooter, setShowFooter] = useState(false);
   const [barVisible, setBarVisible] = useState(false);
+
+  // Semantic ("AI") recommendations — falls back to the plain
+  // same-category recommendations below when there are no matches
+  // yet (e.g. embeddings haven't been generated for this catalog).
+  const [semanticRecs] = useState<Product[] | null>(null);
+  const [recommendationPool, setRecommendationPool] = useState<Product[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchRecommendationPool().then(list => {
+      if (!cancelled) setRecommendationPool(list);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /*useEffect(() => {
+    if (!product) return;
+    let cancelled = false;
+    getSemanticRecommendations(product.id).then(recs => {
+      if (!cancelled) setSemanticRecs(recs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [product?.id]);*/
 
   useEffect(() => {
     const t = setTimeout(() => setBarVisible(true), 50);
@@ -164,6 +200,11 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
       setSelectedSize(getDefaultSize(product));
       setQuantity(1);
       setCurrentRecommendationPage(0);
+      // Reset the notify-me capture form when the product changes so
+      // it doesn't carry a stale size/email over to a new product.
+      setNotifySize(null);
+      setNotifyEmail('');
+      setNotifySent(false);
     }
   }, [product]);
 
@@ -275,7 +316,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const getStyleWithProducts = () => {
-    const homeProducts = allProducts.filter(
+    const pool = recommendationPool.length > 0 ? recommendationPool : allProducts;
+    const homeProducts = pool.filter(
       (p) => p.id !== product.id
     );
 
@@ -297,7 +339,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const getYouMayLikeProducts = () => {
-    const homeProducts = allProducts.filter(
+    const pool = recommendationPool.length > 0 ? recommendationPool : allProducts;
+    const homeProducts = pool.filter(
       (p) => p.id !== product.id
     );
 
@@ -307,7 +350,13 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const styleWithProducts = getStyleWithProducts();
-  const allRecommendations = getYouMayLikeProducts();
+
+  // Prefer AI/semantic matches when available; otherwise fall back to
+  // the plain same-category list so this section is never empty.
+  const allRecommendations =
+    semanticRecs && semanticRecs.length > 0
+      ? semanticRecs
+      : getYouMayLikeProducts();
 
   const getProductFeatures = (currentProduct: Product) => {
     if (currentProduct.category === 'top') {
@@ -622,11 +671,13 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                   style={{ width: '100%', height: 'auto', aspectRatio: '4/6.4' }}
                 >
                   <img
-                    src={img}
+                    src={optimizeImage(img, 800)}
                     alt={`${product.name} - View ${i + 1}`}
                     className="w-full h-full object-cover"
                     loading={i === 0 ? 'eager' : 'lazy'}
                     decoding="async"
+                    width="800"
+                    height="1280"
                   />
                 </div>
               ))}
@@ -646,10 +697,12 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
               onTouchEnd={heroTouchEnd}
             >
               <img
-                src={productImages[mobileImageIndex]}
+                src={optimizeImage(productImages[mobileImageIndex], 800)}
                 alt={`${product.name} - View ${mobileImageIndex + 1}`}
                 className="w-full h-full object-cover cursor-pointer"
                 onClick={() => openGallery(mobileImageIndex)}
+                width="800"
+                height="1067"
               />
               {productImages.length > 1 && (
                 <>
@@ -750,44 +803,88 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
               {/* SIZE */}
               {availableSizes.length > 0 && (
                 <div>
-                  <h3 className="font-light mb-3 tracking-wide text-sm md:text-base">
-                    SIZE{' '}
-                    <span className="font-normal">
-                      {selectedSize}
-                    </span>
-                  </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-light tracking-wide text-sm md:text-base">
+                      SIZE{' '}
+                      <span className="font-normal">{selectedSize}</span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowSizeGuide(true)}
+                      className="text-xs text-gray-400 underline hover:text-black"
+                    >
+                      Size Guide
+                    </button>
+                  </div>
 
                   <div className="flex flex-wrap gap-2 mb-2">
                     {availableSizes.map((sizeOption) => {
-                      const isOutOfStock =
-                        sizeOption.available <= 0;
+                      const isOutOfStock = sizeOption.available <= 0;
 
                       return (
-                        <button
-                          type="button"
-                          key={sizeOption.size}
-                          disabled={isOutOfStock}
-                          onClick={() =>
-                            setSelectedSize(sizeOption.size)
-                          }
-                          title={
-                            isOutOfStock
-                              ? 'Out of stock'
-                              : undefined
-                          }
-                          className={`px-3 py-2 text-center transition-colors text-sm border ${
-                            isOutOfStock
-                              ? 'text-gray-300 border-gray-200 line-through cursor-not-allowed'
-                              : selectedSize === sizeOption.size
-                              ? 'text-black font-medium bg-gray-100'
-                              : 'text-gray-600 hover:text-black'
-                          }`}
-                        >
-                          {sizeOption.size}
-                        </button>
+                        <div key={sizeOption.size} className="flex flex-col items-center">
+                          <button
+                            type="button"
+                            disabled={isOutOfStock}
+                            onClick={() => setSelectedSize(sizeOption.size)}
+                            className={`px-3 py-2 text-center transition-colors text-sm border ${
+                              isOutOfStock
+                                ? 'text-gray-300 border-gray-200 line-through cursor-not-allowed'
+                                : selectedSize === sizeOption.size
+                                ? 'text-black font-medium bg-gray-100'
+                                : 'text-gray-600 hover:text-black'
+                            }`}
+                          >
+                            {sizeOption.size}
+                          </button>
+
+                          {isOutOfStock && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNotifySize(sizeOption.size);
+                                setNotifySent(false);
+                              }}
+                              className="text-[10px] text-gray-400 hover:text-black underline mt-1"
+                            >
+                              Notify me
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
+
+                  {notifySize && (
+                    <div className="mt-3 p-3 border border-gray-200 bg-gray-50 flex items-center gap-2">
+                      {notifySent ? (
+                        <p className="text-xs text-green-700">
+                          We'll email you when size {notifySize} is back.
+                        </p>
+                      ) : (
+                        <>
+                          <input
+                            type="email"
+                            value={notifyEmail}
+                            onChange={e => setNotifyEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            className="flex-1 text-sm px-2 py-1.5 border border-gray-300 focus:outline-none focus:border-black"
+                          />
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!notifyEmail.trim() || !notifySize) return;
+                              await notifyWhenInStock(product.id, notifySize, notifyEmail);
+                              setNotifySent(true);
+                            }}
+                            className="px-3 py-1.5 bg-black text-white text-xs whitespace-nowrap"
+                          >
+                            Notify Me
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -973,11 +1070,13 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                 style={{ width: '100%', height: 'auto', aspectRatio: '4/6.4' }}
               >
                 <img
-                  src={productImages[i]}
+                  src={optimizeImage(productImages[i], 800)}
                   alt={`${product.name} - View ${i + 1}`}
                   className="w-full h-full object-cover"
                   loading="lazy"
                   decoding="async"
+                  width="800"
+                  height="1280"
                 />
               </div>
             ))}
@@ -1026,18 +1125,22 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                       }}
                     >
                       <img
-                        src={normalImage}
+                        src={optimizeImage(normalImage, 500)}
                         alt={relatedProduct.name}
                         loading="lazy"
                         decoding="async"
+                        width="500"
+                        height="933"
                         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100 group-hover:opacity-0"
                       />
 
                       <img
-                        src={hoverImage}
+                        src={optimizeImage(hoverImage, 500)}
                         alt={`${relatedProduct.name} - Alternate`}
                         loading="lazy"
                         decoding="async"
+                        width="500"
+                        height="933"
                         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-100"
                       />
                     </div>
@@ -1152,18 +1255,22 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                       }}
                     >
                       <img
-                        src={normalImage}
+                        src={optimizeImage(normalImage, 500)}
                         alt={relatedProduct.name}
                         loading="lazy"
                         decoding="async"
+                        width="500"
+                        height="933"
                         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100 group-hover:opacity-0"
                       />
 
                       <img
-                        src={hoverImage}
+                        src={optimizeImage(hoverImage, 500)}
                         alt={`${relatedProduct.name} - Alternate`}
                         loading="lazy"
                         decoding="async"
+                        width="500"
+                        height="933"
                         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 group-hover:opacity-100"
                       />
                     </div>
@@ -1283,6 +1390,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
         onClose={() => setIsGalleryOpen(false)}
         initialIndex={selectedImageIndex}
       />
+
+      <SizeGuideModal isOpen={showSizeGuide} onClose={() => setShowSizeGuide(false)} />
     </>
   );
 };

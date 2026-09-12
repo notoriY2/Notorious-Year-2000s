@@ -1,4 +1,5 @@
 // src/hooks/useProducts.ts
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { cached, invalidateCache } from '../lib/requestCache';
@@ -10,11 +11,7 @@ export type { ProductRow };
 
 // NO product_inventory join here on purpose. The floor/grid never
 // renders per-size stock — only ProductDetail does, and it already
-// fetches it separately via fetchProductById() below. Embedding the
-// join here forced a LATERAL join that multiplied every product row
-// by its size count on every floor load, with no supporting index —
-// this was the actual cause of the 57014 statement timeouts and the
-// resulting 20-30s "LOADING COLLECTION" screen.
+// fetches it separately via fetchProductById() below.
 const PRODUCTS_SELECT_FLOOR = `
   id,
   slug,
@@ -34,19 +31,48 @@ const PRODUCTS_SELECT_FLOOR = `
   show_on_floor
 `;
 
+const PRODUCTS_SELECT_CARDS = `
+  id,
+  slug,
+  name,
+  price,
+  image,
+  images,
+  category,
+  sold_out
+`;
+
 const PRODUCTS_SELECT_FULL = `
-  *,
+  id,
+  slug,
+  name,
+  price,
+  image,
+  images,
+  category,
+  sold_out,
+  position_top,
+  position_left,
+  mobile_position_top,
+  mobile_position_left,
+  rotation,
+  scale,
+  z_index,
+  show_on_floor,
+  is_staged,
   product_inventory (
     size,
     available
   )
 `;
 
-// AFTER
-const MAX_RETRIES = 1;       // one retry, not four attempts
-const BASE_DELAY_MS = 300;   // short, fixed backoff, no exponential blowup
-const PRODUCTS_CACHE_TTL_MS = 2 * 60_000; // 2 minutes
+const MAX_RETRIES = 1;
+const BASE_DELAY_MS = 300;
+const PRODUCTS_CACHE_TTL_MS = 10 * 60_000; // 10 minutes — admin writes invalidate this explicitly anyway
 const PRODUCTS_CACHE_KEY = 'products:active';
+const PRODUCT_DETAIL_TTL_MS = 5 * 60_000;
+const RECS_CACHE_KEY = 'products:recommendation-pool';
+const RECS_TTL_MS = 10 * 60_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -70,6 +96,14 @@ const isRetryableError = (message: string | undefined): boolean => {
 };
 
 const fetchProductsFromSupabase = async (): Promise<Product[]> => {
+  try {
+    const res = await fetch('/api/storefront-bootstrap');
+    if (res.ok) {
+      const { products } = await res.json();
+      return (products as ProductRow[]).map(mapRowToProduct);
+    }
+  } catch { /* fall through to direct fetch below */ }
+
   let attempt = 0;
   let lastErrorMessage: string | null = null;
 
@@ -93,30 +127,51 @@ const fetchProductsFromSupabase = async (): Promise<Product[]> => {
       throw new Error(fetchError.message);
     }
 
-    // AFTER
-const delay = BASE_DELAY_MS + Math.random() * 150; // flat, no exponential growth
-await sleep(delay);
-attempt += 1;
+    const delay = BASE_DELAY_MS + Math.random() * 150;
+    await sleep(delay);
+    attempt += 1;
   }
 
   throw new Error(lastErrorMessage ?? 'Failed to load products');
 };
 
-// On-demand fetch for full product details (description, features, etc.) when ProductDetail opens
-export const fetchProductById = async (id: string): Promise<Product | null> => {
-  const { data, error } = await supabase
-    .from('products')
-    .select(PRODUCTS_SELECT_FULL)
-    .eq('id', id)
-    .single();
+export const fetchProductById = async (id: string): Promise<Product | null> =>
+  cached(`product:${id}`, async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select(PRODUCTS_SELECT_FULL)
+      .eq('id', id)
+      .single();
 
-  if (error || !data) {
-    console.error('Failed to fetch full product details:', error);
-    return null;
-  }
+    if (error || !data) {
+      console.error('Failed to fetch full product details:', error);
+      return null;
+    }
 
-  return mapRowToProduct(data as unknown as ProductRow);
-};
+    return mapRowToProduct(data as unknown as ProductRow);
+  }, PRODUCT_DETAIL_TTL_MS);
+
+export const fetchRecommendationPool = async (): Promise<Product[]> =>
+  cached(
+    RECS_CACHE_KEY,
+    async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select(PRODUCTS_SELECT_CARDS)
+        .eq('status', 'Active')
+        .eq('is_staged', false)
+        .order('sales_count', { ascending: false })
+        .limit(60);
+
+      if (error) {
+        console.error('Failed to fetch recommendation pool:', error);
+        return [];
+      }
+
+      return (data as unknown as ProductRow[]).map(mapRowToProduct);
+    },
+    RECS_TTL_MS
+  );
 
 export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -124,6 +179,7 @@ export const useProducts = () => {
   const [error, setError] = useState<string | null>(null);
 
   const isMountedRef = useRef(true);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -152,6 +208,7 @@ export const useProducts = () => {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load products';
+
       if (isMountedRef.current) {
         setError(message);
         setProducts([]);

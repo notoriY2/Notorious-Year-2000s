@@ -33,7 +33,7 @@ export interface ProductRow {
   name: string;
   price: number;
   image: string;
-  images: string[];
+  images?: string[]; // Made optional since PRODUCTS_SELECT_FLOOR omits it for payload optimization
   category: 'top' | 'bottom' | 'accessory';
   status: 'Active' | 'Hidden' | 'Sold Out';
   sold_out: boolean;
@@ -68,9 +68,9 @@ export const mapRowToProduct = (row: ProductRow): Product => ({
   slug: row.slug,
   name: row.name,
   price: Number(row.price),
-  image: row.image,
-  // Fall back to a single-image array if `images` is empty so downstream
-  // code that indexes into images[0..3] doesn't break.
+  image: row.image || '/placeholder-product.svg',
+  // Fall back to a single-image array if `images` is empty or missing (e.g. from floor select)
+  // so downstream code that indexes into images[0..3] doesn't break.
   images: row.images && row.images.length > 0 ? row.images : [row.image],
   // Defaults true so any row missing the column (shouldn't happen post-
   // migration, but be defensive) behaves like today: visible on floor.

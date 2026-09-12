@@ -23,7 +23,7 @@ import {
   useAdminToast,
 } from '../AdminUI';
 
-import { getAdminOrders, updateOrderStatus } from '../../../data/admin';
+import { getAdminOrders, refreshCarrierShipment, updateOrderStatus } from '../../../data/admin';
 import { AdminOrder } from '../../../types/admin';
 
 const AdminOrders: React.FC<{ isActive?: boolean }> = ({ isActive = true }) => {
@@ -955,6 +955,21 @@ const handleRefund = async () => {
                   ? 'Saving...'
                   : 'Save'}
               </AdminButton>
+
+              <AdminButton
+  size="sm"
+  variant="secondary"
+  onClick={async () => {
+    try {
+      await refreshCarrierShipment(order.id);
+      showToast('success', 'Carrier status refreshed.');
+    } catch (err) {
+      showToast('error', 'Failed to refresh carrier status.');
+    }
+  }}
+>
+  Refresh Carrier Status
+</AdminButton>
             </div>
 
             {trackingSaved && (

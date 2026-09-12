@@ -1,6 +1,7 @@
 // src/components/ProductGrid.tsx
 import React from 'react';
 import { Product } from '../types/Product';
+import { optimizeImage } from '../lib/imageOptimizer';
 
 interface ProductGridProps {
   products: Product[];
@@ -50,21 +51,33 @@ const ProductGrid: React.FC<ProductGridProps> = ({
               >
                 {/* NORMAL: first supporting image */}
                 <img
-  src={normalImage}
-  alt={product.name}
-  loading="lazy"
-  decoding="async"
-  className="absolute inset-0 w-full h-full object-cover p-2 sm:p-4 md:p-8 opacity-100 group-hover:opacity-0 transition-opacity duration-300"
-/>
+                  src={optimizeImage(normalImage, 500)}
+                  alt={product.name}
+                  width="500"
+                  height="800"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/placeholder-product.svg';
+                  }}
+                  className="absolute inset-0 w-full h-full object-cover p-2 sm:p-4 md:p-8 opacity-100 group-hover:opacity-0 transition-opacity duration-300"
+                />
 
                 {/* HOVER: second supporting image */}
                 <img
-  src={hoverImage}
-  alt={`${product.name} - Alternate`}
-  loading="lazy"
-  decoding="async"
-  className="absolute inset-0 w-full h-full object-cover p-2 sm:p-4 md:p-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-/>
+                  src={optimizeImage(hoverImage, 500)}
+                  alt={`${product.name} - Alternate`}
+                  width="500"
+                  height="800"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/placeholder-product.svg';
+                  }}
+                  className="absolute inset-0 w-full h-full object-cover p-2 sm:p-4 md:p-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                />
               </div>
             </div>
           );

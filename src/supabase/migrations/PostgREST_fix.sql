@@ -1,0 +1,44 @@
+grant select, insert on public.analytics_events     to anon, authenticated;
+grant select, insert on public.product_views        to anon, authenticated;
+grant select, insert on public.stock_notifications  to anon, authenticated;
+grant select, insert on public.consent_records       to anon, authenticated;
+grant select, insert on public.orders                to anon;
+grant select, insert on public.order_items           to anon;
+
+
+
+grant select, insert, update, delete on public.profiles              to authenticated;
+grant select, insert, update, delete on public.addresses             to authenticated;
+grant select, insert, update, delete on public.carts                 to authenticated;
+grant select, insert, update, delete on public.cart_items            to authenticated;
+grant select, insert, update, delete on public.wishlist_items        to authenticated;
+grant select, insert, update           on public.orders                to authenticated;
+grant select, insert                    on public.order_items           to authenticated;
+grant select, insert, update           on public.returns               to authenticated;
+grant select, insert, update, delete on public.payment_methods       to authenticated;
+grant select, insert                    on public.payment_transactions  to authenticated;
+grant select, insert                    on public.credit_transactions   to authenticated;
+grant select, insert                    on public.discount_redemptions  to authenticated;
+grant select, insert, update, delete on public.admin_notifications    to authenticated;
+grant select, insert                    on public.admin_activity_log    to authenticated;
+grant select, insert, update, delete on public.admin_email_allowlist  to authenticated;
+grant select, insert, update, delete on public.inventory_history      to authenticated;
+grant select, insert, update, delete on public.abandoned_carts        to authenticated;
+grant select, insert, update, delete on public.campaigns              to authenticated;grant select, insert, update, delete on public.profiles              to authenticated;
+grant select, insert, update, delete on public.addresses             to authenticated;
+grant select, insert, update, delete on public.carts                 to authenticated;
+grant select, insert, update, delete on public.cart_items            to authenticated;
+grant select, insert, update, delete on public.wishlist_items        to authenticated;
+grant select, insert, update           on public.orders                to authenticated;
+grant select, insert                    on public.order_items           to authenticated;
+grant select, insert, update           on public.returns               to authenticated;
+grant select, insert, update, delete on public.payment_methods       to authenticated;
+grant select, insert                    on public.payment_transactions  to authenticated;
+grant select, insert                    on public.credit_transactions   to authenticated;
+grant select, insert                    on public.discount_redemptions  to authenticated;
+grant select, insert, update, delete on public.admin_notifications    to authenticated;
+grant select, insert                    on public.admin_activity_log    to authenticated;
+grant select, insert, update, delete on public.admin_email_allowlist  to authenticated;
+grant select, insert, update, delete on public.inventory_history      to authenticated;
+grant select, insert, update, delete on public.abandoned_carts        to authenticated;
+grant select, insert, update, delete on public.campaigns              to authenticated;

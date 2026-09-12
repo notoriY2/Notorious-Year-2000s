@@ -106,12 +106,15 @@ const fetchStorefrontBanners = async (): Promise<StorefrontBanner[]> => {
         banner_products (
           position,
           products (
-            *,
-            product_inventory (
-              size,
-              available
-            )
-          )
+  id,
+  slug,
+  name,
+  price,
+  image,
+  images,
+  category,
+  sold_out
+)
         )
       `
     )
@@ -633,14 +636,19 @@ export const promoteStagedBannerProduct = async (productId: string): Promise<voi
  * so banner images are real files in Storage rather than inline data
  * URLs bloating the `banners.image` column.
  */
-export const uploadBannerImage = async (file: File): Promise<string> => {
+// src/data/banners.ts (uploadBannerImage update)
+
+export const uploadBannerImage = async (
+  file: File,
+  removeBackground = false,
+  onBackgroundRemoved?: (url: string) => void
+): Promise<string> => {
   const fileExt = file.name.split('.').pop() ?? 'jpg';
   const filePath = `${crypto.randomUUID()}.${fileExt}`;
 
   const { error: uploadError } = await supabase.storage
     .from('banners')
-    // data/banners.ts — uploadBannerImage
-.upload(filePath, file, { cacheControl: '31536000', upsert: false });
+    .upload(filePath, file, { cacheControl: '31536000', upsert: false });
 
   if (uploadError) {
     console.error('Failed to upload banner image:', uploadError);
@@ -648,6 +656,16 @@ export const uploadBannerImage = async (file: File): Promise<string> => {
   }
 
   const { data } = supabase.storage.from('banners').getPublicUrl(filePath);
+  const publicUrl = data.publicUrl;
 
-  return data.publicUrl;
+  if (removeBackground) {
+    import('../lib/removeBackground')
+      .then(({ removeBackgroundOnServer }) =>
+        removeBackgroundOnServer('banners', filePath)
+      )
+      .then(processedUrl => onBackgroundRemoved?.(processedUrl))
+      .catch(err => console.error('Background removal failed, keeping original image:', err));
+  }
+
+  return publicUrl;
 };

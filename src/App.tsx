@@ -1,4 +1,4 @@
-import React, {
+import {
   useEffect,
   useRef,
   useState,
@@ -12,17 +12,16 @@ import Cart from './components/Cart';
 import AuthModal from './components/AuthModal';
 import Wishlist from './components/Wishlist';
 import BannerCollection from './components/BannerCollection';
-
+import SupportChatWidget from './components/SupportChatWidget';
 import { Routes, Route, useNavigate } from 'react-router-dom';
-
-import ProductDetailRoute from './routes/ProductDetailRoute';
-import CheckoutRoute from './routes/CheckoutRoute';
-import MyAccountRoute from './routes/MyAccountRoute';
-import BannerCollectionRoute from './routes/BannerCollectionRoute';
 
 const AdminDashboardRoute = lazy(
   () => import('./routes/AdminDashboardRoute')
 );
+const ProductDetailRoute = lazy(() => import('./routes/ProductDetailRoute'));
+const CheckoutRoute = lazy(() => import('./routes/CheckoutRoute'));
+const MyAccountRoute = lazy(() => import('./routes/MyAccountRoute'));
+const BannerCollectionRoute = lazy(() => import('./routes/BannerCollectionRoute'));
 
 import { useCart } from './hooks/useCart';
 import { useAuth } from './hooks/useAuth';
@@ -41,12 +40,13 @@ function App() {
      UI STATE
   ========================================================= */
 
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(
+  () => !sessionStorage.getItem('ny2-splash-seen')
+);
 
   const {
     products,
     isLoading: productsLoading,
-    error: productsError,
   } = useProducts();
 
   const [viewMode, setViewMode] = useState<'floor' | 'grid'>('floor');
@@ -126,22 +126,13 @@ function App() {
   ========================================================= */
 
   useEffect(() => {
-    const t = window.setTimeout(
-      () => setShowSplash(false),
-      3000
-    );
-
-    return () => window.clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    const maxTimer = window.setTimeout(
-      () => setShowSplash(false),
-      6000
-    );
-
-    return () => window.clearTimeout(maxTimer);
-  }, []);
+  if (!showSplash) return;
+  const t = window.setTimeout(() => {
+    setShowSplash(false);
+    sessionStorage.setItem('ny2-splash-seen', '1');
+  }, 1200); // shortened from 3000ms, and only ever shown once per session
+  return () => window.clearTimeout(t);
+}, [showSplash]);
 
   /* =========================================================
      PRODUCT NAVIGATION
@@ -428,38 +419,40 @@ function App() {
         <Route
           path="/product/:slugOrId"
           element={
-            <ProductDetailRoute
-              products={products}
-              onAddToCart={addToCart}
-              formatPrice={formatPrice}
-              onToggleWishlist={toggleWishlist}
-              isInWishlist={isInWishlist}
-              currencies={currencies}
-              selectedCurrency={selectedCurrency}
-              onCurrencyChange={setSelectedCurrency}
-              user={user}
-              onAuthClick={handleOpenAuth}
-              onSignOut={signOut}
-              wishlistItems={wishlistItems}
-              cartItems={cartItems}
-              isCartOpen={isCartOpen}
-              onOpenCart={handleOpenCart}
-              onCloseCart={handleCloseCart}
-              onUpdateCartQuantity={
-                updateQuantity
-              }
-              onRemoveCartItem={removeItem}
-              onOpenWishlist={
-                handleOpenWishlist
-              }
-              cartItemsCount={cartItemsCount}
-              onOpenAdminDashboard={
-                handleOpenAdminDashboard
-              }
-              onOpenMyAccount={
-                handleOpenMyAccount
-              }
-            />
+            <Suspense fallback={<div className="fixed inset-0 bg-white" />}>
+              <ProductDetailRoute
+                products={products}
+                onAddToCart={addToCart}
+                formatPrice={formatPrice}
+                onToggleWishlist={toggleWishlist}
+                isInWishlist={isInWishlist}
+                currencies={currencies}
+                selectedCurrency={selectedCurrency}
+                onCurrencyChange={setSelectedCurrency}
+                user={user}
+                onAuthClick={handleOpenAuth}
+                onSignOut={signOut}
+                wishlistItems={wishlistItems}
+                cartItems={cartItems}
+                isCartOpen={isCartOpen}
+                onOpenCart={handleOpenCart}
+                onCloseCart={handleCloseCart}
+                onUpdateCartQuantity={
+                  updateQuantity
+                }
+                onRemoveCartItem={removeItem}
+                onOpenWishlist={
+                  handleOpenWishlist
+                }
+                cartItemsCount={cartItemsCount}
+                onOpenAdminDashboard={
+                  handleOpenAdminDashboard
+                }
+                onOpenMyAccount={
+                  handleOpenMyAccount
+                }
+              />
+            </Suspense>
           }
         />
 
@@ -470,30 +463,32 @@ function App() {
         <Route
           path="/collection/:bannerId"
           element={
-            <BannerCollectionRoute
-              onProductClick={handleProductClick}
-              onAddToCart={addToCart}
-              formatPrice={formatPrice}
-              currencies={currencies}
-              selectedCurrency={selectedCurrency}
-              onCurrencyChange={
-                setSelectedCurrency
-              }
-              user={user}
-              onAuthClick={handleOpenAuth}
-              wishlistItems={wishlistItems}
-              onOpenWishlist={
-                handleOpenWishlist
-              }
-              cartItemsCount={cartItemsCount}
-              onOpenCart={handleOpenCart}
-              onOpenAdminDashboard={
-                handleOpenAdminDashboard
-              }
-              onOpenMyAccount={
-                handleOpenMyAccount
-              }
-            />
+            <Suspense fallback={<div className="fixed inset-0 bg-white" />}>
+              <BannerCollectionRoute
+                onProductClick={handleProductClick}
+                onAddToCart={addToCart}
+                formatPrice={formatPrice}
+                currencies={currencies}
+                selectedCurrency={selectedCurrency}
+                onCurrencyChange={
+                  setSelectedCurrency
+                }
+                user={user}
+                onAuthClick={handleOpenAuth}
+                wishlistItems={wishlistItems}
+                onOpenWishlist={
+                  handleOpenWishlist
+                }
+                cartItemsCount={cartItemsCount}
+                onOpenCart={handleOpenCart}
+                onOpenAdminDashboard={
+                  handleOpenAdminDashboard
+                }
+                onOpenMyAccount={
+                  handleOpenMyAccount
+                }
+              />
+            </Suspense>
           }
         />
 
@@ -504,19 +499,21 @@ function App() {
         <Route
           path="/checkout"
           element={
-            <CheckoutRoute
-              items={cartItems}
-              formatPrice={formatPrice}
-              user={user}
-              onAuthClick={handleOpenAuth}
-              onSignIn={signIn}
-              onSignUp={signUp}
-              onSignInWithProvider={
-                signInWithProvider
-              }
-              isAuthLoading={isLoading}
-              clearCart={clearCart}
-            />
+            <Suspense fallback={<div className="fixed inset-0 bg-white" />}>
+              <CheckoutRoute
+                items={cartItems}
+                formatPrice={formatPrice}
+                user={user}
+                onAuthClick={handleOpenAuth}
+                onSignIn={signIn}
+                onSignUp={signUp}
+                onSignInWithProvider={
+                  signInWithProvider
+                }
+                isAuthLoading={isLoading}
+                clearCart={clearCart}
+              />
+            </Suspense>
           }
         />
 
@@ -527,10 +524,12 @@ function App() {
         <Route
           path="/account"
           element={
-            <MyAccountRoute
-              user={user}
-              onSignOut={signOut}
-            />
+            <Suspense fallback={<div className="fixed inset-0 bg-white" />}>
+              <MyAccountRoute
+                user={user}
+                onSignOut={signOut}
+              />
+            </Suspense>
           }
         />
 
@@ -648,7 +647,7 @@ function App() {
         onAddToCart={addToCart}
         onCheckout={handleCheckout}
       />
-
+<SupportChatWidget />
       {/* =======================================================
           MOBILE TAB BAR
       ======================================================= */}

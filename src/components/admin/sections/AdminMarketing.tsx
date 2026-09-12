@@ -49,6 +49,7 @@ import {
 } from '../../../types/admin';
 
 import { useIsViewer } from '../../../hooks/useIsViewer';
+import { supabase } from '../../../lib/supabase';
 
 const FONT = "'Helvetica Neue', Arial, sans-serif";
 const ACCENT = '#C44D2B';
@@ -1421,6 +1422,8 @@ const RecoveryEmailModal: React.FC<{
   onSend: () => void;
 }> = ({ cartCount, onClose, onSend }) => {
   const visible = useModalEntrance();
+  const { showToast } = useAdminToast();
+  const [isGenerating, setIsGenerating] = useState(false);
   const [subject, setSubject] = useState('You left something behind...');
   const [body, setBody] = useState(
     "Hey! We noticed you left some items in your cart. They're still waiting for you — come finish checking out before they sell out."
@@ -1454,6 +1457,36 @@ const RecoveryEmailModal: React.FC<{
           <p className="text-xs text-gray-500">
             This will be sent to <strong className="text-gray-700">{cartCount}</strong> customer{cartCount === 1 ? '' : 's'} with a pending abandoned cart.
           </p>
+          <div className="flex justify-end">
+  <button
+    type="button"
+    disabled={isGenerating}
+    onClick={async () => {
+      setIsGenerating(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('generate-recovery-email', {
+          body: { cartCount, averageValue: 0 },
+        });
+        if (error) {
+  const detail = await (error as any).context?.json?.().catch(() => null);
+  const errorMessage = detail?.error ?? error.message;
+  console.error('Recovery email error:', errorMessage);
+  showToast('error', errorMessage);
+  return;
+}
+        setSubject(data.subject);
+        setBody(data.body);
+      } catch (err) {
+        console.error('Failed to generate recovery email:', err);
+      } finally {
+        setIsGenerating(false);
+      }
+    }}
+    className="text-xs text-[#C44D2B] hover:underline disabled:opacity-50"
+  >
+    {isGenerating ? 'Generating…' : '✨ Generate copy'}
+  </button>
+</div>
           <AdminInput label="Subject" value={subject} onChange={setSubject} />
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1 tracking-wide">Message</label>

@@ -12,9 +12,9 @@ import {
   User,
   Grid3X3,
   Sparkles,
-  Instagram,
   Heart,
   LayoutDashboard,
+  Search,
 } from 'lucide-react';
 
 import {
@@ -22,6 +22,7 @@ import {
   CartItem,
 } from '../types/Product';
 
+import SearchOverlay from './SearchOverlay';
 import ProductItem from './ProductItem';
 import ProductGrid from './ProductGrid';
 import CurrencySelector from './CurrencySelector';
@@ -126,6 +127,8 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
   viewMode,
   onViewModeChange,
 }) => {
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   /* =========================================================
      BASIC COUNTS
   ========================================================= */
@@ -340,48 +343,31 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
   }, [floorEligibleProducts]);
 
   /* =========================================================
-     WINDOW RESIZE
+     WINDOW RESIZE (Optimized to prevent premature flushing)
   ========================================================= */
 
   useEffect(() => {
-    let resizeTimer: number | null =
-      null;
+    let resizeTimer: number | null = null;
 
     const handleResize = () => {
       if (resizeTimer !== null) {
-        window.clearTimeout(
-          resizeTimer
-        );
+        window.clearTimeout(resizeTimer);
       }
 
-      resizeTimer =
-        window.setTimeout(() => {
-          setVisibleProducts(
-            floorEligibleProducts
-          );
-        }, 100);
+      resizeTimer = window.setTimeout(() => {
+        // Keep resize handling lightweight without disrupting entrance animations
+      }, 100);
     };
 
-    window.addEventListener(
-      'resize',
-      handleResize
-    );
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener(
-        'resize',
-        handleResize
-      );
-
-      if (
-        resizeTimer !== null
-      ) {
-        window.clearTimeout(
-          resizeTimer
-        );
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimer !== null) {
+        window.clearTimeout(resizeTimer);
       }
     };
-  }, [floorEligibleProducts]);
+  }, []);
 
   /* =========================================================
      FOOTER VISIBILITY
@@ -444,12 +430,6 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
 
   const mobileHeightVh =
   55 + Math.max(0, mobileRows - 1) * 22.5;
-
-  const floorHeightVh =
-    Math.max(
-      desktopHeightVh,
-      mobileHeightVh
-    );
 
   /* =========================================================
      HERO CTA
@@ -572,6 +552,15 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
                 onCurrencyChange
               }
             />
+
+            <button
+  type="button"
+  onClick={() => setIsSearchOpen(true)}
+  className="p-1 sm:p-2 hover:bg-gray-50 rounded-full transition-colors duration-200"
+  aria-label="Search products"
+>
+  <Search size={18} className="sm:w-5 sm:h-5 text-black" />
+</button>
 
             {/* DESKTOP VIEW TOGGLE */}
 
@@ -753,10 +742,6 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
           }`}
         />
 
-        {/* Non-blocking loading overlay — renders ON TOP of whatever's
-    already on screen (cached products from a previous load, or an
-    empty floor on first load) instead of hiding it. Transparent bg,
-    no pointer-events, so it never blocks scroll/clicks. */}
 {isLoading && (
   <div className="fixed inset-0 z-20 flex flex-col items-center justify-center px-6 text-center bg-transparent pointer-events-none">
     <div className="relative w-28 h-28 sm:w-36 sm:h-36 mb-8">
@@ -856,28 +841,28 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
                           onClick={() =>
                             onProductClick(
                               product
-                            )
-                          }
-                          className="group relative flex-shrink-0 w-36 sm:w-44 md:w-52 text-left"
+                          )
+                        }
+                        className="group relative flex-shrink-0 w-36 sm:w-44 md:w-52 text-left"
                         >
                           <div className="aspect-[3/4] bg-gray-50 overflow-hidden">
                             <img
                               src={
                                 product.images?.[0] ||
                                 product.image
-                              }
-                              alt={
-                                product.name
-                              }
-                              className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.03]"
-                            />
-                          </div>
+                            }
+                            alt={
+                              product.name
+                            }
+                            className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.03]"
+                          />
+                        </div>
 
-                          <div className="pt-3">
+                        <div className="pt-3">
                             <p className="text-xs sm:text-sm text-black truncate">
                               {
                                 product.name
-                              }
+                            }
                             </p>
 
                             <p className="mt-1 text-xs text-gray-400">
@@ -885,25 +870,25 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
                                 product.price
                               )}
                             </p>
-                          </div>
-                        </button>
-                      )
-                    )}
+                        </div>
+                      </button>
+                    )
+                  )}
 
-                  </div>
                 </div>
-              </section>
-            )}
+              </div>
+            </section>
+          )}
 
-            {/* PRODUCT FLOOR */}
+          {/* PRODUCT FLOOR */}
 
-            <div
+          <div
   className="relative w-full px-0 product-floor-container"
   style={{
-    '--floor-h-mobile': `${mobileHeightVh}vh`,
-    '--floor-h-desktop': `${desktopHeightVh}vh`,
-    marginBottom: '50px',
-  } as React.CSSProperties}
+  '--floor-h-mobile': `${mobileHeightVh}dvh`,
+  '--floor-h-desktop': `${desktopHeightVh}dvh`,
+  marginBottom: '50px',
+} as React.CSSProperties}
 >
               {isLoading && visibleProducts.length === 0 && (  <>    {FLOOR_LAYOUT.slice(0, SKELETON_COUNT).map((slot, index) => (      <div        key={`skeleton-${index}`}        className="absolute bg-gray-100 animate-pulse rounded-lg"        style={{          top: slot.position.top,          left: slot.position.left,          transform: `translate(-17%, 0) rotate(${slot.rotation}deg) scale(${slot.scale * 0.8})`,          zIndex: slot.zIndex,          width: '90px',          height: '120px',        }}      />    ))}  </>)}
               {visibleProducts.map(
@@ -924,10 +909,10 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
                     onHover={
                       handleProductHover
                     }
-                  />
-                )
-              )}
-            </div>
+                />
+              )
+            )}
+          </div>
           </div>
         ) : (
           <div
@@ -976,7 +961,7 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
         >
           {hoveredProduct.name.toUpperCase()}
         </div>
-      )}
+    )}
 
       {/* =====================================================
           FOOTER
@@ -988,6 +973,15 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
       >
         <ShopFooter />
       </div>
+
+      <SearchOverlay
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        products={uniqueProducts}
+        onAddToCart={onAddToCart}
+        onProductClick={onProductClick}
+        formatPrice={formatPrice}
+      />
     </div>
   );
 };

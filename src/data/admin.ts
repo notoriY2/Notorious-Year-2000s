@@ -2,6 +2,7 @@
 
 import { supabase } from '../lib/supabase';
 import { cached, invalidateAdminCache, SLOW_TTL_MS } from '../lib/adminCache';
+import { invalidateCache } from '../lib/requestCache';
 
 import {
   AdminKPI,
@@ -531,6 +532,7 @@ export const createAdminProductWithInventory = async (
   }
 
   invalidateAdminCache('products:');
+  invalidateCache('product:');
 
   void logAdminActivity(`Created product "${product.name}"`);
 
@@ -557,6 +559,7 @@ export const updateAdminProductWithInventory = async (
   }
 
   invalidateAdminCache('products:');
+  invalidateCache('product:');
 
   void logAdminActivity(`Updated product "${product.name}"`);
 
@@ -587,6 +590,7 @@ export const deleteAdminProduct = async (
   }
 
   invalidateAdminCache('products:');
+  invalidateCache('product:');
 
   void logAdminActivity(`Deleted product "${name ?? id}"`);
 };
@@ -1003,6 +1007,7 @@ export const updateAdminProduct = async (
   }
 
   invalidateAdminCache('products:');
+  invalidateCache('product:');
 };
 
 // ============================================================
@@ -1225,6 +1230,7 @@ export interface CreateOrderPayload {
   billingAddress?: Record<string, unknown>;
   discountCode?: string;
   discountAmount?: number;
+  idempotencyKey: string;
   notes?: string;
   paymentMethod?: string; // e.g. 'Credit Card', 'PayPal'
 
@@ -1262,6 +1268,7 @@ export const createOrder = async (
 
   const { data, error } = await supabase.rpc('create_order_with_items', {
     p_user_id: orderPayload.userId,
+    p_idempotency_key: orderPayload.idempotencyKey,
     p_customer_name: orderPayload.customerName,
     p_customer_email: orderPayload.customerEmail,
     p_customer_phone: orderPayload.customerPhone ?? null,
@@ -2152,14 +2159,19 @@ export const getAdminOverviewData =
       };
     });
 
-export const uploadProductImage = async (file: File): Promise<string> => {
+// src/data/admin.ts (uploadProductImage update)
+
+export const uploadProductImage = async (
+  file: File,
+  removeBackground = true,
+  onBackgroundRemoved?: (url: string) => void
+): Promise<string> => {
   const fileExt = file.name.split('.').pop() ?? 'jpg';
   const filePath = `${crypto.randomUUID()}.${fileExt}`;
 
   const { error: uploadError } = await supabase.storage
     .from('product-images')
-    // data/admin.ts — uploadProductImage
-.upload(filePath, file, { cacheControl: '31536000', upsert: false });
+    .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
   if (uploadError) {
     console.error('Failed to upload product image:', uploadError);
@@ -2167,7 +2179,20 @@ export const uploadProductImage = async (file: File): Promise<string> => {
   }
 
   const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
-  return data.publicUrl;
+  const publicUrl = data.publicUrl;
+
+  // Runs server-side now, after the raw image is already visible —
+  // never blocks the upload UI.
+  if (removeBackground) {
+    import('../lib/removeBackground')
+      .then(({ removeBackgroundOnServer }) =>
+        removeBackgroundOnServer('product-images', filePath)
+      )
+      .then(processedUrl => onBackgroundRemoved?.(processedUrl))
+      .catch(err => console.error('Background removal failed, keeping original image:', err));
+  }
+
+  return publicUrl;
 };
 
 // ============================================================
@@ -2211,3 +2236,57 @@ export const getAdminAnalyticsData =
         revenueByCountry,
       };
     });
+
+export interface CarrierShipment {
+  orderId: string;
+  carrier: string | null;
+  trackingNumber: string | null;
+  status: string | null;
+  estimatedDelivery: string | null;
+  lastCheckedAt: string | null;
+  events: { label: string; timestamp: string }[];
+}
+
+export const getCarrierShipment = async (orderId: string): Promise<CarrierShipment | null> => {
+  const { data, error } = await supabase
+    .from('carrier_shipments')
+    .select('*')
+    .eq('order_id', orderId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to load carrier shipment:', error);
+    return null;
+  }
+  if (!data) return null;
+
+  return {
+    orderId: data.order_id,
+    carrier: data.carrier,
+    trackingNumber: data.tracking_number,
+    status: data.status,
+    estimatedDelivery: data.estimated_delivery,
+    lastCheckedAt: data.last_checked_at,
+    events: data.events ?? [],
+  };
+};
+
+export const refreshCarrierShipment = async (orderId: string): Promise<CarrierShipment> => {
+  const { data, error } = await supabase.functions.invoke('track-shipment', {
+    body: { orderId },
+  });
+  if (error) throw error;
+  return data as CarrierShipment;
+};
+
+export const claimGuestOrder = async (orderId: string, userEmail: string): Promise<void> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase
+    .from('orders')
+    .update({ user_id: user.id })
+    .eq('id', orderId)
+    .eq('customer_email', userEmail)
+    .is('user_id', null);
+  if (error) console.error('Failed to claim guest order:', error);
+};

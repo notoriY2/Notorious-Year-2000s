@@ -1506,6 +1506,9 @@ const ProductEditor: React.FC<{
   onSave: (product: AdminProductWithSizes) => void;
 }> = ({ product, mode, categorySizes, onClose, onSave }) => {
 
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+const [keepOriginalBackground, setKeepOriginalBackground] = useState(false);
+
   const [name, setName] =
     useState(product.name);
 
@@ -1691,11 +1694,36 @@ const ProductEditor: React.FC<{
 
     try {
       for (const file of filesToAdd) {
-        const url = await uploadProductImage(file);
-        setImages(prev =>
-          prev.length >= MAX_TOTAL_IMAGES ? prev : [...prev, url]
-        );
-      }
+  const url = await uploadProductImage(
+    file,
+    !keepOriginalBackground,
+    processedUrl => {
+      // Swap the raw image for the background-removed one once the
+      // server job finishes — no re-upload, no blocking.
+      setImages(prev => prev.map(img => (img === url ? processedUrl : img)));
+    }
+  );
+  setImages(prev =>
+    prev.length >= MAX_TOTAL_IMAGES ? prev : [...prev, url]
+  );
+
+  if (images[0]) {
+    // 2. Inside image upload check-image-consistency call:
+supabase.functions
+  .invoke('check-image-consistency', { body: { referenceUrl: images[0], newUrl: url } })
+  .then(async ({ data, error }) => {
+    if (error) {
+      const detail = await (error as any).context?.json?.().catch(() => null);
+      console.error('Consistency check error:', detail?.error ?? error.message);
+      return;
+    }
+    if (data && !data.consistent) {
+      showToast('error', data.note ?? "This image's background differs from your main photo — consider reshooting.");
+    }
+  })
+  .catch(() => {});
+  }
+}
     } catch (err) {
       console.error('Failed to upload product image:', err);
       setImageUploadError(
@@ -1848,6 +1876,16 @@ const ProductEditor: React.FC<{
               Product Images
             </p>
 
+
+<label className="flex items-center gap-2 text-[11px] text-gray-400 mt-2">
+  <input
+    type="checkbox"
+    checked={keepOriginalBackground}
+    onChange={e => setKeepOriginalBackground(e.target.checked)}
+    className="w-3.5 h-3.5"
+  />
+  Keep original background
+</label>
             <div className="flex flex-wrap gap-3">
 
               {images.map(
@@ -2090,9 +2128,40 @@ const ProductEditor: React.FC<{
 
           <div>
 
-            <label className="block text-xs font-medium text-gray-500 mb-1 tracking-wide">
-              Description
-            </label>
+            <div className="flex items-center justify-between mb-1">
+  <label className="block text-xs font-medium text-gray-500 tracking-wide">
+    Description
+  </label>
+  <button
+    type="button"
+    disabled={isGeneratingDescription || !name.trim()}
+    onClick={async () => {
+      setIsGeneratingDescription(true);
+      try {
+        // 1. Inside description generation onClick handler:
+const { data, error } = await supabase.functions.invoke('generate-product-description', {
+  body: { name, category, features: features.split('\n').filter(Boolean) },
+});
+
+if (error) {
+  const detail = await (error as any).context?.json?.().catch(() => null);
+  const errorMessage = detail?.error ?? error.message;
+  console.error('Description generation error:', errorMessage);
+  showToast('error', errorMessage);
+  return;
+}
+        setDescription(data.text);
+      } catch (err) {
+        console.error('Failed to generate description:', err);
+      } finally {
+        setIsGeneratingDescription(false);
+      }
+    }}
+    className="text-xs text-[#C44D2B] hover:underline disabled:opacity-50"
+  >
+    {isGeneratingDescription ? 'Generating…' : '✨ Generate with AI'}
+  </button>
+</div>
 
             <textarea
               value={

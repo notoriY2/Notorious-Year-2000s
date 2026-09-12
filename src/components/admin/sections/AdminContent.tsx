@@ -46,7 +46,7 @@ import {
 
 import HeroSection from '../../HeroSection';
 import AnnouncementBar from '../../AnnouncementBar';
-import { getNextAvailableFloorSlot, FLOOR_LAYOUT } from '../../../data/floorLayout';
+import { FLOOR_LAYOUT } from '../../../data/floorLayout';
 
 import { useProducts } from '../../../hooks/useProducts';
 import type { Product } from '../../../types/Product';
@@ -2245,8 +2245,10 @@ const StagedProductFormModal: React.FC<{
 
     try {
       for (const file of Array.from(files).slice(0, Math.max(0, 6 - images.length))) {
-        const url = await uploadProductImage(file);
-        setImages(prev => [...prev, url]);
+        const url = await uploadProductImage(file, true, processedUrl => {
+  setImages(prev => prev.map(img => (img === url ? processedUrl : img)));
+});
+setImages(prev => [...prev, url]);
       }
     } catch (err) {
       console.error('Failed to upload staged product image:', err);
@@ -3496,8 +3498,10 @@ const MediaLibraryManager: React.FC<{
 
     try {
       for (const file of Array.from(files)) {
-        const url = await uploadProductImage(file);
-        setUploadedImages(prev => [url, ...prev]);
+        const url = await uploadProductImage(file, true, processedUrl => {
+  setUploadedImages(prev => prev.map(img => (img === url ? processedUrl : img)));
+});
+setUploadedImages(prev => [url, ...prev]);
       }
     } catch (err) {
       console.error('Failed to upload image:', err);

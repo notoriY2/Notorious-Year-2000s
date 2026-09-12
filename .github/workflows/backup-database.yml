@@ -1,0 +1,51 @@
+name: Nightly Database Backup
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 2am UTC daily
+  workflow_dispatch:        # allows manual "run now" from the Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client gnupg
+
+      - name: Dump database
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          pg_dump \
+            --host=${{ secrets.SUPABASE_DB_HOST }} \
+            --port=5432 \
+            --username=postgres \
+            --dbname=postgres \
+            --no-owner --no-acl --format=custom \
+            --file="backup-$(date +%Y-%m-%d).dump"
+
+      - name: Encrypt dump
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          gpg --batch --yes --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 \
+            -o "backup-$(date +%Y-%m-%d).dump.gpg" \
+            "backup-$(date +%Y-%m-%d).dump"
+          rm "backup-$(date +%Y-%m-%d).dump"
+
+      - name: Upload to backup repository
+        env:
+          GH_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          git clone https://x-access-token:${GH_TOKEN}@github.com/YOUR_USERNAME/notorious-y2-backups.git backups
+          mkdir -p backups/dumps
+          cp backup-*.dump.gpg backups/dumps/
+          cd backups
+          # Keep 30 days of nightly dumps, delete anything older
+          find dumps -name "*.dump.gpg" -mtime +30 -delete
+          git config user.email "backup-bot@notorious.y2"
+          git config user.name "Backup Bot"
+          git add .
+          git commit -m "Nightly backup $(date +%Y-%m-%d)" || echo "Nothing to commit"
+          git push

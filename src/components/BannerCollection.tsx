@@ -28,6 +28,7 @@ import CurrencySelector from './CurrencySelector';
 import ShopFooter from './ShopFooter';
 import { Currency } from '../hooks/useCurrency';
 import { User as UserType } from '../hooks/useAuth';
+import { optimizeImage } from '../lib/imageOptimizer';
 
 interface BannerCollectionProps {
   banner: StorefrontBanner | null;
@@ -154,8 +155,10 @@ const BannerCollection: React.FC<BannerCollectionProps> = ({
                   className="flex items-center space-x-1 sm:space-x-2 md:space-x-3 cursor-pointer"
                 >
                   <img
-                    src="/logo/13 (1).png"
+                    src={optimizeImage("/logo/13 (1).png", 48)}
                     alt="Notorious Y2"
+                    width={48}
+                    height={48}
                     className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 object-contain"
                   />
 
@@ -203,8 +206,10 @@ const BannerCollection: React.FC<BannerCollectionProps> = ({
                     >
                       {user.avatar ? (
                         <img
-                          src={user.avatar}
+                          src={optimizeImage(user.avatar, 24)}
                           alt={user.name || 'Account'}
+                          width={24}
+                          height={24}
                           className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full object-cover"
                         />
                       ) : (
