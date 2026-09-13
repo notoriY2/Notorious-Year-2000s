@@ -345,18 +345,60 @@ export const getFloorSlot = (index: number): FloorSlot => {
  * before new slots are used. Falls back to cycling by count if every
  * slot in one full cycle is taken.
  */
+/**
+ * Returns the first slot in FLOOR_LAYOUT not currently occupied by any
+ * existing product's position, so deleted/gap positions get backfilled
+ * before new slots are used.
+ *
+ * When every base slot is occupied, the function starts a new layout lap
+ * and moves that lap further down the floor instead of placing products
+ * directly on top of existing products.
+ */
 export const getNextAvailableFloorSlot = (
   occupiedPositions: { top: string; left: string }[]
 ): FloorSlot => {
   const occupied = new Set(
     occupiedPositions.map(p => `${p.top}|${p.left}`)
   );
+
+  // First, use any genuinely empty base slot.
   for (const slot of FLOOR_LAYOUT) {
     const key = `${slot.position.top}|${slot.position.left}`;
+
     if (!occupied.has(key)) {
       return slot;
     }
   }
-  // Every base slot is taken — cycle as before.
-  return FLOOR_LAYOUT[occupiedPositions.length % FLOOR_LAYOUT.length];
+
+  // Every base slot is occupied.
+  //
+  // Start another lap through the layout, but push the entire lap
+  // further down the floor so the new product cannot be perfectly
+  // stacked on top of an existing product.
+  const lap = Math.floor(
+    occupiedPositions.length / FLOOR_LAYOUT.length
+  );
+
+  const slotIndex =
+    occupiedPositions.length % FLOOR_LAYOUT.length;
+
+  const baseSlot = FLOOR_LAYOUT[slotIndex];
+
+  // Each additional lap gets its own vertical section.
+  // 300dvh gives plenty of separation from the previous lap.
+  const verticalNudgeVh = lap * 300;
+
+  return {
+    ...baseSlot,
+
+    position: {
+      top: `calc(${baseSlot.position.top} + ${verticalNudgeVh}dvh)`,
+      left: baseSlot.position.left,
+    },
+
+    mobilePosition: {
+      top: `calc(${baseSlot.mobilePosition.top} + ${verticalNudgeVh}dvh)`,
+      left: baseSlot.mobilePosition.left,
+    },
+  };
 };
