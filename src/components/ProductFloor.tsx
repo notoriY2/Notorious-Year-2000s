@@ -883,11 +883,10 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
           {/* PRODUCT FLOOR */}
 
           <div
-  className="relative w-full px-0 product-floor-container"
+  className="relative w-full px-0 product-floor-container mb-0 sm:mb-0 md:mb-[20px]"
   style={{
   '--floor-h-mobile': `${mobileHeightVh}dvh`,
   '--floor-h-desktop': `${desktopHeightVh}dvh`,
-  marginBottom: '30px',
 } as React.CSSProperties}
 >
               {isLoading && visibleProducts.length === 0 && (  <>    {FLOOR_LAYOUT.slice(0, SKELETON_COUNT).map((slot, index) => (      <div        key={`skeleton-${index}`}        className="absolute bg-gray-100 animate-pulse rounded-lg"        style={{          top: slot.position.top,          left: slot.position.left,          transform: `translate(-17%, 0) rotate(${slot.rotation}deg) scale(${slot.scale * 0.8})`,          zIndex: slot.zIndex,          width: '90px',          height: '120px',        }}      />    ))}  </>)}

@@ -1,17 +1,27 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://notorious-y2.vercel.app';
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Comma-separated list, e.g. set ALLOWED_ORIGINS in Supabase secrets to:
+// https://notorious-y2.vercel.app,https://notorious-y2-store.vercel.app
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ??
+  'https://notorious-y2.vercel.app,https://notorious-y2-store.vercel.app,http://localhost:5173'
+).split(',').map(o => o.trim());
 
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') ?? '';
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+  };
+}
 // Swap this out for a real carrier API (AfterShip, EasyPost, Shippo, etc.)
 // once you have credentials — the contract this function must keep is:
 // read { orderId }, write/update a carrier_shipments row, return that row
 // in the CarrierShipment shape data/admin.ts expects.
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

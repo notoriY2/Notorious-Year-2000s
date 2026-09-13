@@ -4,11 +4,21 @@ const GROQ_KEY = Deno.env.get('GROQ_API_KEY');
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const VISION_MODEL = 'meta-llama/llama-3.2-11b-vision-preview'; // Update to your active Groq vision model
 
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://notorious-y2.vercel.app';
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Comma-separated list, e.g. set ALLOWED_ORIGINS in Supabase secrets to:
+// https://notorious-y2.vercel.app,https://notorious-y2-store.vercel.app
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ??
+  'https://notorious-y2.vercel.app,https://notorious-y2-store.vercel.app,http://localhost:5173'
+).split(',').map(o => o.trim());
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') ?? '';
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+  };
+}
 
 async function toDataUrl(url: string): Promise<string> {
   const res = await fetch(url);
@@ -23,6 +33,7 @@ async function toDataUrl(url: string): Promise<string> {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
