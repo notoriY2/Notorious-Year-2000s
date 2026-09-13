@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const GROQ_KEY = Deno.env.get('GROQ_API_KEY');
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.3-70b-versatile';
+const MODEL = 'openai/gpt-oss-120b';
 
 // Comma-separated list, e.g. set ALLOWED_ORIGINS in Supabase secrets to:
 // https://notorious-y2.vercel.app,https://notorious-y2-store.vercel.app

@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const GROQ_KEY = Deno.env.get('GROQ_API_KEY');
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const VISION_MODEL = 'meta-llama/llama-3.2-11b-vision-preview'; // Update to your active Groq vision model
+const VISION_MODEL = 'qwen/qwen3.6-27b'; // Update to your active Groq vision model
 
 // Comma-separated list, e.g. set ALLOWED_ORIGINS in Supabase secrets to:
 // https://notorious-y2.vercel.app,https://notorious-y2-store.vercel.app
