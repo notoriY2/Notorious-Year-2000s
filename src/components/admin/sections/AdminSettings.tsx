@@ -1019,6 +1019,10 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   perms:
                     'View analytics and reports only',
                 },
+                {
+  role: 'Viewer',
+  perms: 'View the dashboard only. Cannot create, edit, or delete anything.',
+},
               ].map((r, i) => (
                 <div
                   key={i}

@@ -205,6 +205,6 @@ body {
 
 @media (min-width: 768px) {
   .product-floor-container {
-    height: calc(var(--floor-h-desktop) - 60px - 5cm);
+    height: calc(var(--floor-h-desktop) - 60px);
   }
 }

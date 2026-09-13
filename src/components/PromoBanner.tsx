@@ -48,17 +48,17 @@ const PromoBanner: React.FC<PromoBannerProps> = ({
 
   return (
     <button
-      type="button"
-      onClick={handleClick}
-      aria-label={`View the ${banner.title} collection`}
-      className="relative block w-full text-center bg-white overflow-hidden group/banner"
-      style={{ fontFamily: FONT }}
-    >
+  type="button"
+  onClick={handleClick}
+  aria-label={`View the ${banner.title} collection`}
+  className="relative block w-full text-center bg-white overflow-hidden group/banner my-10 md:my-16"
+  style={{ fontFamily: FONT }}
+>
       {/* =====================================================
           HEADLINE + SCRAWL — centered, heavy weight, tight leading
       ===================================================== */}
 
-      <div className="relative flex flex-col items-center mx-auto px-4 sm:px-8 md:px-12 pt-10 pb-8 sm:pt-14 sm:pb-10 md:pt-16 md:pb-12">
+      <div className="relative flex flex-col items-center mx-auto px-8 pt-20 pb-16">
         <h2
           className="relative mx-auto font-black leading-[0.78] tracking-tight text-black transition-transform duration-500 ease-out group-hover/banner:-translate-y-1"
           style={{

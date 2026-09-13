@@ -39,6 +39,11 @@ import { trackEvent } from '../lib/analytics'
 // Add near the top of Checkout.tsx, with the other imports:
 import { openSupportChat } from '../lib/supportChatBus';
 import { supabase } from '../lib/supabase';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { recordConsent } from '../data/consent';
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 /* =========================================================
    TYPES
@@ -107,6 +112,48 @@ const SOUTH_AFRICAN_PROVINCES = [
 ];
 
 /* =========================================================
+   STRIPE PAYMENT FORM SUB-COMPONENT
+========================================================= */
+
+const StripePaymentForm = ({ onSuccess }: { onSuccess: () => void }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+
+  const handlePay = async () => {
+    if (!stripe || !elements) return;
+    setProcessing(true);
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: window.location.href },
+      redirect: 'if_required',
+    });
+    if (error) {
+      setError(error.message ?? 'Payment failed.');
+      setProcessing(false);
+    } else {
+      onSuccess();
+    }
+  };
+
+  return (
+    <div className="p-5 space-y-4">
+      <PaymentElement />
+      {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+      <button
+        type="button"
+        onClick={handlePay}
+        disabled={processing}
+        className="w-full h-16 bg-black text-white text-sm tracking-[0.22em] uppercase hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+      >
+        {processing ? 'Processing…' : 'Pay now'}
+      </button>
+    </div>
+  );
+};
+
+/* =========================================================
    COMPONENT
 ========================================================= */
 
@@ -154,11 +201,6 @@ const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
     paymentMethod:
       'credit_card',
-
-    cardNumber: '',
-    expirationDate: '',
-    securityCode: '',
-    nameOnCard: '',
 
     useBillingAddress:
       true,
@@ -223,6 +265,7 @@ const [conversionPassword, setConversionPassword] = useState('');
 const [conversionStatus, setConversionStatus] = useState<'idle' | 'loading' | 'done'>('idle');
 const [sessionId] = useState(() => crypto.randomUUID());
 const [discountError, setDiscountError] = useState('');
+const [clientSecret, setClientSecret] = useState<string | null>(null);
 
 const handleApplyDiscount = async () => {
   setDiscountError('');
@@ -353,16 +396,30 @@ const tax = useMemo(
 );
 
 const total = subtotal + shipping + tax - discountAmount;
-  /*
-   * Shipping is currently displayed as
-   * "Calculated at checkout".
-   *
-   * Replace this with your actual
-   * shipping calculation when that
-   * service is connected.
-   */
-  
 
+  /* =======================================================
+     FETCH STRIPE CLIENT SECRET
+  ======================================================= */
+
+  useEffect(() => {
+    if (!isOpen || total <= 0) return;
+
+    let isMounted = true;
+    supabase.functions.invoke('create-payment-intent', {
+      body: { amount: Math.round(total * 100), currency: 'zar' },
+    }).then(({ data, error }) => {
+      if (!isMounted) return;
+      if (error) {
+        console.error('Failed to create payment intent:', error);
+      } else if (data?.clientSecret) {
+        setClientSecret(data.clientSecret);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, total]);
 
   const itemCount =
     items.reduce(
@@ -520,6 +577,15 @@ const total = subtotal + shipping + tax - discountAmount;
           orderPayload,
           orderItems
         );
+        if (formData.emailOffers) {
+  void recordConsent({
+    userId: user?.id ?? null,
+    email: customerEmail,
+    consentType: 'marketing_email',
+    granted: true,
+    source: 'checkout_checkbox',
+  });
+}
 
       // Empty the cart now that the order genuinely exists in the
       // database — guest localStorage cart or the authenticated
@@ -1754,102 +1820,15 @@ await claimGuestOrder(lastOrderId, formData.email);
     </div>
 
     {formData.paymentMethod === 'credit_card' && (
-      <div className="p-5 space-y-4">
-        {/* Demo mode warning */}
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-          Demo mode — no real charge is made and card details aren't sent anywhere. Do not enter a real card number.
+      clientSecret ? (
+        <Elements stripe={stripePromise} options={{ clientSecret }}>
+          <StripePaymentForm onSuccess={completeOrder} />
+        </Elements>
+      ) : (
+        <div className="p-8 text-center text-sm text-gray-500">
+          Loading payment gateway...
         </div>
-
-        {/* Card number */}
-        <div className="relative">
-          <input
-            type="text"
-            inputMode="numeric"
-            autoComplete="cc-number"
-            placeholder="Card number"
-            value={formData.cardNumber}
-            onChange={event =>
-              handleInputChange('cardNumber', event.target.value)
-            }
-            className="w-full h-14 px-4 pr-12 border border-gray-300 focus:outline-none focus:border-black font-light"
-            required
-          />
-
-          <Lock
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-            size={18}
-            strokeWidth={1.5}
-          />
-        </div>
-
-        {/* Expiry / CVV */}
-        <div className="grid grid-cols-2 gap-4">
-          <input
-            type="text"
-            inputMode="numeric"
-            autoComplete="cc-exp"
-            placeholder="MM / YY"
-            value={formData.expirationDate}
-            onChange={event =>
-              handleInputChange('expirationDate', event.target.value)
-            }
-            className="w-full h-14 px-4 border border-gray-300 focus:outline-none focus:border-black font-light"
-            required
-          />
-
-          <div className="relative">
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="cc-csc"
-              placeholder="Security code"
-              value={formData.securityCode}
-              onChange={event =>
-                handleInputChange('securityCode', event.target.value)
-              }
-              className="w-full h-14 px-4 pr-12 border border-gray-300 focus:outline-none focus:border-black font-light"
-              required
-            />
-
-            <Info
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-              size={17}
-            />
-          </div>
-        </div>
-
-        {/* Cardholder */}
-        <input
-          type="text"
-          autoComplete="cc-name"
-          placeholder="Name on card"
-          value={formData.nameOnCard}
-          onChange={event =>
-            handleInputChange('nameOnCard', event.target.value)
-          }
-          className="w-full h-14 px-4 border border-gray-300 focus:outline-none focus:border-black font-light"
-          required
-        />
-
-        {/* Billing */}
-        <label className="flex items-center gap-3 pt-1">
-          <input
-            type="checkbox"
-            checked={formData.useBillingAddress}
-            onChange={event =>
-              handleInputChange('useBillingAddress', event.target.checked)
-            }
-            className="w-4 h-4"
-            style={{
-              accentColor: '#B58627',
-            }}
-          />
-
-          <span className="text-sm text-gray-500 font-light">
-            Use shipping address as billing address
-          </span>
-        </label>
-      </div>
+      )
     )}
   </div>
 
@@ -2019,24 +1998,6 @@ await claimGuestOrder(lastOrderId, formData.email);
                       </span>
                     </div>
                   </div>
-
-                  {/* =======================================
-                      PAY BUTTON
-                  ======================================= */}
-
-                  <button
-                    type="submit"
-                    disabled={
-                      items.length === 0 ||
-                      isProcessing
-                    }
-                    className="w-full h-16 bg-black text-white text-sm tracking-[0.22em] uppercase hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Pay now ·{' '}
-                    {formatPrice(
-                      total
-                    )}
-                  </button>
 
                   {/* =======================================
                       TERMS

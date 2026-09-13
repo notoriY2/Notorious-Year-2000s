@@ -1733,36 +1733,14 @@ export const inviteAdminUser = async (
 ): Promise<void> => {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const { error: allowlistError } = await supabase
-    .from('admin_email_allowlist')
-    .upsert({ email: normalizedEmail, admin_role: role }, { onConflict: 'email' });
+  const { error } = await supabase.rpc('invite_admin_user', {
+    p_email: normalizedEmail,
+    p_role: role,
+  });
 
-  if (allowlistError) {
-    console.error('Failed to add to admin allowlist:', allowlistError);
-    throw allowlistError;
-  }
-
-  const { data: existingProfile, error: profileLookupError } = await supabase
-    .from('profiles')
-    .select('id')
-    .ilike('email', normalizedEmail)
-    .maybeSingle();
-
-  if (profileLookupError) {
-    console.error('Failed to look up existing profile:', profileLookupError);
-    throw profileLookupError;
-  }
-
-  if (existingProfile) {
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ is_admin: true, admin_role: role, admin_status: 'Active' })
-      .eq('id', existingProfile.id);
-
-    if (updateError) {
-      console.error('Failed to grant admin access:', updateError);
-      throw updateError;
-    }
+  if (error) {
+    console.error('Failed to invite admin user:', error);
+    throw error;
   }
 
   invalidateAdminCache('users:');

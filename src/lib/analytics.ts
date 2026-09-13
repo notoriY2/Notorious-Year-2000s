@@ -1,3 +1,4 @@
+import { getAnalyticsConsent } from './consent';
 import { supabase } from './supabase';
 
 const SESSION_KEY = 'ny2-session-id';
@@ -34,6 +35,10 @@ const flush = () => {
 window.addEventListener('pagehide', flush);
 
 export const trackEvent = (eventType: string, path?: string): void => {
+  if (getAnalyticsConsent() !== 'granted') {
+    return;
+  }
+
   queue.push({
     event_type: eventType,
     path: path ?? window.location.pathname,

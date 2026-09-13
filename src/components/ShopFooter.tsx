@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Instagram, Music2, Facebook, Youtube } from 'lucide-react';
 import { getStoreSettings, type FooterSettings } from '../data/storeSettings';
+import { recordConsent } from '../data/consent';
 
 const FONT = "'Helvetica Neue', Arial, sans-serif";
 
@@ -13,6 +14,30 @@ const DEFAULT_FOOTER: FooterSettings = {
 
 const ShopFooter: React.FC = () => {
   const [settings, setSettings] = useState<FooterSettings>(DEFAULT_FOOTER);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+const [subscribeStatus, setSubscribeStatus] =
+  useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+
+const handleNewsletterSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!newsletterEmail.trim() || subscribeStatus === 'loading') return;
+
+  setSubscribeStatus('loading');
+  try {
+    await recordConsent({
+      userId: null,
+      email: newsletterEmail.trim().toLowerCase(),
+      consentType: 'marketing_email',
+      granted: true,
+      source: 'footer_signup',
+    });
+    setSubscribeStatus('done');
+    setNewsletterEmail('');
+  } catch (err) {
+    console.error('Failed to save newsletter signup:', err);
+    setSubscribeStatus('error');
+  }
+};
 
   useEffect(() => {
     let cancelled = false;
@@ -33,19 +58,26 @@ const ShopFooter: React.FC = () => {
             <h3 className="text-[10px] sm:text-xs font-medium mb-1 sm:mb-2 md:mb-3 tracking-[0.05em] sm:tracking-[0.1em]">
               JOIN OUR MAIL LIST
             </h3>
-            <div className="flex">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="flex-1 min-w-0 px-1 sm:px-2 md:px-3 py-0.5 sm:py-1 md:py-2 text-[9px] sm:text-xs border border-gray-300 rounded-l-md focus:outline-none focus:border-black"
-              />
-              <button
-                type="button"
-                className="px-1 sm:px-2 md:px-4 py-0.5 sm:py-1 md:py-2 bg-black text-white text-[9px] sm:text-xs rounded-r-md hover:bg-gray-800 transition-colors whitespace-nowrap"
-              >
-                Subscribe
-              </button>
-            </div>
+            <form onSubmit={handleNewsletterSubmit} className="flex">
+  <input
+    type="email"
+    required
+    value={newsletterEmail}
+    onChange={e => setNewsletterEmail(e.target.value)}
+    placeholder="Enter your email"
+    className="flex-1 min-w-0 px-1 sm:px-2 md:px-3 py-0.5 sm:py-1 md:py-2 text-[9px] sm:text-xs border border-gray-300 rounded-l-md focus:outline-none focus:border-black"
+  />
+  <button
+    type="submit"
+    disabled={subscribeStatus === 'loading'}
+    className="px-1 sm:px-2 md:px-4 py-0.5 sm:py-1 md:py-2 bg-black text-white text-[9px] sm:text-xs rounded-r-md hover:bg-gray-800 transition-colors whitespace-nowrap disabled:opacity-50"
+  >
+    {subscribeStatus === 'done' ? 'Subscribed!' : subscribeStatus === 'loading' ? '...' : 'Subscribe'}
+  </button>
+</form>
+{subscribeStatus === 'error' && (
+  <p className="text-[9px] text-red-500 mt-1">Something went wrong — try again.</p>
+)}
           </div>
 
           {/* SOCIAL — always shown, same icon set at every breakpoint */}
