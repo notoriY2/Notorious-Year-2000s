@@ -35,6 +35,7 @@ import {
 } from '../data/admin';
 
 import SizeGuideModal from './SizeGuideModal';
+import InfoModal from './InfoModal';
 import { trackEvent } from '../lib/analytics'
 // Add near the top of Checkout.tsx, with the other imports:
 import { openSupportChat } from '../lib/supportChatBus';
@@ -260,6 +261,7 @@ const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; type: string; value: number } | null>(null);
 const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
 const [showSizeGuide, setShowSizeGuide] = useState(false);
+const [infoModal, setInfoModal] = useState<'shipping' | 'returns' | 'faq' | null>(null);
 const [showAccountPrompt, setShowAccountPrompt] = useState(false);
 const [conversionPassword, setConversionPassword] = useState('');
 const [conversionStatus, setConversionStatus] = useState<'idle' | 'loading' | 'done'>('idle');
@@ -2214,30 +2216,22 @@ await claimGuestOrder(lastOrderId, formData.email);
                 <div className="border-t border-gray-200 mt-8 pt-6">
                   <div className="grid grid-cols-2 gap-y-3">
                     <button
-                      type="button"
-                      onClick={() =>
-                        handleLinkClick(
-                          'https://notorious.y2.com/shipping'
-                        )
-                      }
-                      className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
-                    >
-                      Shipping Info
-                    </button>
+  type="button"
+  onClick={() => setInfoModal('shipping')}
+  className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
+>
+  Shipping Info
+</button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleLinkClick(
-                          'https://notorious.y2.com/returns'
-                        )
-                      }
-                      className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
-                    >
-                      Returns Policy
-                    </button>
+<button
+  type="button"
+  onClick={() => setInfoModal('returns')}
+  className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
+>
+  Returns Policy
+</button>
 
-                    <button
+<button
   type="button"
   onClick={() => setShowSizeGuide(true)}
   className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
@@ -2245,17 +2239,13 @@ await claimGuestOrder(lastOrderId, formData.email);
   Size Guide
 </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleLinkClick(
-                          'https://notorious.y2.com/faq'
-                        )
-                      }
-                      className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
-                    >
-                      FAQ
-                    </button>
+<button
+  type="button"
+  onClick={() => setInfoModal('faq')}
+  className="text-left text-xs text-gray-500 hover:text-black hover:underline transition-colors"
+>
+  FAQ
+</button>
                   </div>
                 </div>
 
@@ -2285,6 +2275,37 @@ await claimGuestOrder(lastOrderId, formData.email);
 
 
                 <SizeGuideModal isOpen={showSizeGuide} onClose={() => setShowSizeGuide(false)} />
+
+<InfoModal isOpen={infoModal === 'shipping'} onClose={() => setInfoModal(null)} title="Shipping Info">
+  <p>We ship across South Africa via our courier partners, with delivery in 2–5 business days for most areas.</p>
+  <p>Orders over R500 qualify for free standard shipping. Shipping costs for smaller orders are calculated at checkout based on your delivery address.</p>
+  <p>Once your order ships, you'll receive a tracking number by email — you can also check status any time from My Account → Orders.</p>
+</InfoModal>
+
+<InfoModal isOpen={infoModal === 'returns'} onClose={() => setInfoModal(null)} title="Returns Policy">
+  <p>Not the right fit? You can request a return within 14 days of delivery for unworn items in original condition with tags attached.</p>
+  <p>Start a return from My Account → Returns, or contact support@notorious.y2.com with your order number.</p>
+  <p>Refunds are issued to your original payment method once we receive and inspect the returned item.</p>
+</InfoModal>
+
+<InfoModal isOpen={infoModal === 'faq'} onClose={() => setInfoModal(null)} title="FAQ">
+  <div>
+    <p className="font-medium text-gray-900 mb-1">How long does delivery take?</p>
+    <p>2–5 business days for most South African addresses.</p>
+  </div>
+  <div>
+    <p className="font-medium text-gray-900 mb-1">Can I change my order after placing it?</p>
+    <p>Contact us as soon as possible at support@notorious.y2.com — we can usually amend an order before it ships.</p>
+  </div>
+  <div>
+    <p className="font-medium text-gray-900 mb-1">Do you ship internationally?</p>
+    <p>Not yet — currently we ship within South Africa only.</p>
+  </div>
+  <div>
+    <p className="font-medium text-gray-900 mb-1">What payment methods do you accept?</p>
+    <p>Credit/debit cards via Stripe, with more options coming soon.</p>
+  </div>
+</InfoModal>
               </div>
             </aside>
           </div>

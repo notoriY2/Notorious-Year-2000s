@@ -88,7 +88,7 @@ setMessages(prev => [
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
         aria-label={isOpen ? 'Close support chat' : 'Open support chat'}
-        className="fixed bottom-20 lg:bottom-6 right-4 lg:right-6 z-[65] w-12 h-12 rounded-full bg-black text-white flex items-center justify-center shadow-lg hover:bg-gray-800 transition-colors"
+        className="fixed bottom-20 lg:bottom-6 right-4 lg:right-6 z-[105] w-12 h-12 rounded-full bg-black text-white flex items-center justify-center shadow-lg hover:bg-gray-800 transition-colors"
       >
         {isOpen ? <X size={20} /> : <MessageCircle size={20} />}
       </button>
@@ -96,7 +96,7 @@ setMessages(prev => [
       {/* PANEL */}
       {isOpen && (
         <div
-          className="fixed bottom-[144px] lg:bottom-24 right-4 lg:right-6 z-[65] w-[92vw] max-w-sm h-[70vh] max-h-[520px] bg-white border border-gray-200 shadow-2xl rounded-2xl flex flex-col overflow-hidden"
+          className="fixed bottom-[144px] lg:bottom-24 right-4 lg:right-6 z-[105] w-[92vw] max-w-sm h-[70vh] max-h-[520px] bg-white border border-gray-200 shadow-2xl rounded-2xl flex flex-col overflow-hidden"
           style={{ fontFamily: FONT }}
         >
           {/* HEADER */}

@@ -86,14 +86,13 @@ const ClickHereScrawl: React.FC = () => (
     aria-hidden="true"
   >
     <span
-      className="absolute uppercase"
+      className="absolute uppercase text-[2.2rem] sm:text-[3.2rem] md:text-[4.4rem] lg:text-[6rem]"
       style={{
-        top: '6%',
+        top: '8%',
         left: '50%',
         fontFamily: MARKER_FONT,
         fontWeight: 900,
         color: MARKER_RED,
-        fontSize: 'clamp(2.2rem, 9vw, 6rem)',
         letterSpacing: '0.02em',
         transform: 'translateX(-50%) rotate(-8deg)',
         WebkitTextStroke: '1.5px ' + MARKER_RED,
@@ -103,14 +102,13 @@ const ClickHereScrawl: React.FC = () => (
     </span>
 
     <span
-      className="absolute uppercase"
+      className="absolute uppercase text-[2.2rem] sm:text-[3.2rem] md:text-[4.4rem] lg:text-[6rem]"
       style={{
-        top: '44%',
+        top: '42%',
         left: '50%',
         fontFamily: MARKER_FONT,
         fontWeight: 900,
         color: MARKER_RED,
-        fontSize: 'clamp(2.2rem, 9vw, 6rem)',
         letterSpacing: '0.02em',
         transform: 'translateX(-50%) rotate(-4deg)',
         WebkitTextStroke: '1.5px ' + MARKER_RED,

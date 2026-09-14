@@ -385,8 +385,8 @@ export const getNextAvailableFloorSlot = (
   const baseSlot = FLOOR_LAYOUT[slotIndex];
 
   // Each additional lap gets its own vertical section.
-  // 300dvh gives plenty of separation from the previous lap.
-  const verticalNudgeVh = lap * 300;
+  // 20dvh gives plenty of separation from the previous lap.
+  const verticalNudgeVh = lap * 20;
 
   return {
     ...baseSlot,

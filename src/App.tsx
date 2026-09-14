@@ -13,7 +13,7 @@ import AuthModal from './components/AuthModal';
 import Wishlist from './components/Wishlist';
 import BannerCollection from './components/BannerCollection';
 import SupportChatWidget from './components/SupportChatWidget';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 const AdminDashboardRoute = lazy(
   () => import('./routes/AdminDashboardRoute')
@@ -52,7 +52,8 @@ function App() {
   const [viewMode, setViewMode] = useState<'floor' | 'grid'>('floor');
 
   const navigate = useNavigate();
-
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -647,7 +648,7 @@ function App() {
         onAddToCart={addToCart}
         onCheckout={handleCheckout}
       />
-<SupportChatWidget />
+{!showSplash && !isAdminRoute && <SupportChatWidget />}
       {/* =======================================================
           MOBILE TAB BAR
       ======================================================= */}
