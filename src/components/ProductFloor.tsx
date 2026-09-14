@@ -128,7 +128,7 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
   onViewModeChange,
 }) => {
   const parseVh = (calcStr: string): number => {
-  const match = calcStr.match(/(-?\d+(\.\d+)?)vh/);
+  const match = calcStr.match(/(-?\d+(\.\d+)?)[sdl]?vh/);
   return match ? parseFloat(match[1]) : 0;
 };
 
@@ -886,7 +886,7 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
           {/* PRODUCT FLOOR */}
 
           <div
-  className="relative w-full px-0 product-floor-container mb-[-200px] sm:mb-[-200px] md:mb-[20px]"
+  className="relative w-full px-0 product-floor-container mb-4 md:mb-6"
   style={{
     '--floor-h-mobile': `${mobileHeightVh}dvh`,
     '--floor-h-desktop': `${desktopHeightVh}dvh`,
