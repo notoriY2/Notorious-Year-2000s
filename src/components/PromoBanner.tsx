@@ -48,27 +48,26 @@ const PromoBanner: React.FC<PromoBannerProps> = ({
 
   return (
     <button
-  type="button"
-  onClick={handleClick}
-  aria-label={`View the ${banner.title} collection`}
-  className="relative block w-full text-center bg-white overflow-hidden group/banner my-10 md:my-16"
-  style={{ fontFamily: FONT }}
->
+      type="button"
+      onClick={handleClick}
+      aria-label={`View the ${banner.title} collection`}
+      className="relative block w-full text-center bg-white overflow-hidden group/banner my-10 md:my-16"
+      style={{ fontFamily: FONT }}
+    >
       {/* =====================================================
           HEADLINE + SCRAWL — centered, heavy weight, tight leading
       ===================================================== */}
 
-      <div className="relative flex flex-col items-center mx-auto px-8 pt-20 pb-16">
+      <div className="relative flex flex-col items-center mx-auto px-4 sm:px-8 pt-20 pb-16">
         <h2
-          className="relative mx-auto font-black leading-[0.78] tracking-tight text-black transition-transform duration-500 ease-out group-hover/banner:-translate-y-1"
+          className="relative inline-block mx-auto font-black leading-[0.78] tracking-tight text-black transition-transform duration-500 ease-out group-hover/banner:-translate-y-1"
           style={{
             fontSize: 'clamp(2.75rem, 11vw, 7.5rem)',
           }}
         >
           {banner.title}
+          <ClickHereScrawl />
         </h2>
-
-        <ClickHereScrawl />
       </div>
     </button>
   );
@@ -77,19 +76,20 @@ const PromoBanner: React.FC<PromoBannerProps> = ({
 /* ============================================================
    CLICK HERE SCRAWL
    Fixed decorative element — bold red marker strokes laid directly
-   over the headline, centered horizontally.
+   over the headline, anchored to the title bounds so it scales
+   consistently across mobile and desktop.
 ============================================================ */
 
 const ClickHereScrawl: React.FC = () => (
   <div
-    className="pointer-events-none select-none absolute inset-0 z-10"
+    className="pointer-events-none select-none absolute inset-0 z-10 overflow-visible"
     aria-hidden="true"
   >
     <span
-      className="absolute uppercase text-[2.2rem] sm:text-[3.2rem] md:text-[4.4rem] lg:text-[6rem]"
+      className="absolute uppercase text-[1.8rem] sm:text-[3.2rem] md:text-[4.4rem] lg:text-[6rem] whitespace-nowrap"
       style={{
-        top: '8%',
-        left: '50%',
+        top: '-30%',
+        left: '58%',
         fontFamily: MARKER_FONT,
         fontWeight: 900,
         color: MARKER_RED,
@@ -102,10 +102,10 @@ const ClickHereScrawl: React.FC = () => (
     </span>
 
     <span
-      className="absolute uppercase text-[2.2rem] sm:text-[3.2rem] md:text-[4.4rem] lg:text-[6rem]"
+      className="absolute uppercase text-[1.8rem] sm:text-[3.2rem] md:text-[4.4rem] lg:text-[6rem] whitespace-nowrap"
       style={{
-        top: '42%',
-        left: '50%',
+        top: '40%',
+        left: '42%',
         fontFamily: MARKER_FONT,
         fontWeight: 900,
         color: MARKER_RED,
