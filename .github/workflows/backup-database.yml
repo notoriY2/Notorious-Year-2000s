@@ -17,9 +17,9 @@ jobs:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           pg_dump \
-            --host=${{ secrets.SUPABASE_DB_HOST }} \
-            --port=5432 \
-            --username=postgres \
+            --host="${{ secrets.SUPABASE_POOLER_HOST }}" \
+            --port="${{ secrets.SUPABASE_POOLER_PORT }}" \
+            --username="${{ secrets.SUPABASE_DB_USER }}" \
             --dbname=postgres \
             --no-owner --no-acl --format=custom \
             --file="backup-$(date +%Y-%m-%d).dump"

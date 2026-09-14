@@ -2672,28 +2672,55 @@ const handleDragStart = (e: React.MouseEvent, product: EditableFloorProduct) => 
     (product) => product.id === selectedId
   );
 
-  const handleRandomizePositions = () => {
+  const handleRandomizePositions = async () => {
   if (isViewer) {
     showToast('error', "You don't have permission to make changes (Viewer role).");
     return;
   }
-  setFloorProducts(prev => {
-    const slots = prev.map((_, i) => FLOOR_LAYOUT[i % FLOOR_LAYOUT.length]);
-    for (let i = slots.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [slots[i], slots[j]] = [slots[j], slots[i]];
-    }
-    return prev.map((product, i) => ({
-      ...product,
-      position: { ...slots[i].position },
-      mobilePosition: { ...slots[i].mobilePosition },
-      rotation: slots[i].rotation,
-      scale: slots[i].scale,
-      zIndex: slots[i].zIndex,
-    }));
-  });
-  setFloorSaveSuccess(false);
+
+  const slots = floorProducts.map((_, i) => FLOOR_LAYOUT[i % FLOOR_LAYOUT.length]);
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+  }
+
+  const randomized = floorProducts.map((product, i) => ({
+    ...product,
+    position: { ...slots[i].position },
+    mobilePosition: { ...slots[i].mobilePosition },
+    rotation: slots[i].rotation,
+    scale: slots[i].scale,
+    zIndex: slots[i].zIndex,
+  }));
+
+  setFloorProducts(randomized);
   setFloorSaveError(null);
+  setFloorSaveSuccess(false);
+  setIsSavingFloor(true);
+
+  try {
+    await Promise.all(
+      randomized.map((product) =>
+        updateProductFloorPosition({
+          id: product.id,
+          position: product.position,
+          mobilePosition: product.mobilePosition,
+          rotation: product.rotation,
+          scale: product.scale,
+          zIndex: product.zIndex,
+          showOnFloor: true,
+        })
+      )
+    );
+    setFloorSaveSuccess(true);
+    window.setTimeout(() => setFloorSaveSuccess(false), 3000);
+  } catch (err) {
+    setFloorSaveError(
+      err instanceof Error ? err.message : 'Failed to save randomized layout.'
+    );
+  } finally {
+    setIsSavingFloor(false);
+  }
 };
 
   // Save Handlers
