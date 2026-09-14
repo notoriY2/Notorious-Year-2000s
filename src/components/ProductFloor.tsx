@@ -431,7 +431,7 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
 
   const mobileHeightVh = Math.max(
   55,
-  Math.max(0, ...floorEligibleProducts.map(p => parseVh(p.mobilePosition?.top ?? p.position.top))) + 30
+  Math.max(0, ...floorEligibleProducts.map(p => parseVh(p.mobilePosition?.top ?? p.position.top))) + 28
 );
 
   /* =========================================================
@@ -730,7 +730,7 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
   className={`pt-0 relative ${
     viewMode ===
     'floor'
-      ? 'pb-30 sm:pb-48'
+      ? 'pb-28 sm:pb-48'
       : 'pb-12 sm:pb-16'
   }`}
 >
