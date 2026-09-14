@@ -1,3 +1,4 @@
+// src/components/SizeGuideModal.tsx
 import React, { useState } from 'react';
 import { X, Info } from 'lucide-react';
 
@@ -9,6 +10,9 @@ interface SizeGuideModalProps {
 type Gender = 'women' | 'men' | 'girls' | 'boys';
 type Category = 'bottoms' | 'tops' | 'shoes' | 'belts';
 type Unit = 'CM' | 'INCH';
+
+const ACCENT = '#C44D2B';
+const FONT = "'Helvetica Neue', Arial, sans-serif";
 
 const TOP_SIZES = [
   { size: 'XXS', chest: 80, waist: 66, hip: 80 },
@@ -28,561 +32,154 @@ const BOTTOM_SIZES = [
   { size: '36', waist: 91, hip: 109, inseam: 82 },
 ];
 
-const SizeGuideModal: React.FC<SizeGuideModalProps> = ({
-  isOpen,
-  onClose,
-}) => {
+const Segmented = <T extends string>({
+  value, onChange, options,
+}: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) => (
+  <div className="inline-flex p-1 bg-gray-100 rounded-full">
+    {options.map(opt => (
+      <button
+        key={opt.value}
+        type="button"
+        onClick={() => onChange(opt.value)}
+        className={`px-4 py-2 text-[11px] font-medium tracking-wide rounded-full transition-all duration-200 ${
+          value === opt.value ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:text-black'
+        }`}
+      >
+        {opt.label}
+      </button>
+    ))}
+  </div>
+);
+
+const SizeGuideModal: React.FC<SizeGuideModalProps> = ({ isOpen, onClose }) => {
   const [gender, setGender] = useState<Gender>('men');
   const [category, setCategory] = useState<Category>('tops');
   const [unit, setUnit] = useState<Unit>('CM');
 
   if (!isOpen) return null;
 
-  const convertMeasurement = (value: number) => {
-    if (unit === 'CM') return value;
-
-    // centimetres → inches
-    return Math.round((value / 2.54) * 10) / 10;
-  };
-
-  const formatMeasurement = (value: number) => {
-    const converted = convertMeasurement(value);
-
-    return unit === 'CM'
-      ? `${converted} cm`
-      : `${converted}"`;
-  };
-
+  const toIn = (v: number) => Math.round((v / 2.54) * 10) / 10;
+  const fmt = (v: number) => (unit === 'CM' ? `${v} cm` : `${toIn(v)}"`);
   const isTop = category === 'tops';
 
   return (
     <div
-      className="fixed inset-0 z-[85] bg-white md:bg-black/70 md:backdrop-blur-sm md:flex md:items-center md:justify-center"
+      className="fixed inset-x-0 top-0 h-[100dvh] z-[85] bg-black/40 backdrop-blur-sm flex items-end md:items-center md:justify-center"
       onClick={onClose}
+      style={{ fontFamily: FONT }}
     >
       <div
-        className="
-          relative
-          w-full
-          h-full
-          md:h-auto
-          md:max-h-[92vh]
-          md:max-w-2xl
-          bg-white
-          overflow-y-auto
-          md:rounded-2xl
-          md:shadow-2xl
-          overscroll-contain
-        "
-        onClick={(e) => e.stopPropagation()}
+        className="relative w-full md:max-w-xl bg-white rounded-t-[28px] md:rounded-2xl shadow-2xl max-h-[92vh] md:max-h-[88vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
       >
-        {/* =========================================================
-            HEADER
-        ========================================================= */}
-        <header className="sticky top-0 z-30 h-[64px] bg-white border-b border-gray-100 flex items-center justify-center">
-          <h2 className="text-[24px] leading-none font-bold lowercase tracking-tight text-black">
-            size guide
-          </h2>
+        <div className="md:hidden flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1.5 rounded-full bg-gray-300" />
+        </div>
 
+        <header className="sticky top-0 z-10 bg-white/95 backdrop-blur px-6 pt-3 pb-5 flex items-start justify-between border-b border-gray-100">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gray-400 mb-1">Notorious.Y2</p>
+            <h2 className="text-2xl font-light tracking-tight">Size Guide</h2>
+          </div>
           <button
-            type="button"
             onClick={onClose}
             aria-label="Close size guide"
-            className="
-              absolute
-              right-0
-              top-0
-              h-[64px]
-              w-[58px]
-              bg-black
-              text-white
-              flex
-              items-center
-              justify-center
-              transition-colors
-              hover:bg-gray-800
-              active:bg-gray-900
-            "
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-black transition-colors"
           >
-            <X size={24} strokeWidth={1.8} />
+            <X size={18} />
           </button>
         </header>
 
-        {/* =========================================================
-            CONTENT
-        ========================================================= */}
-        <main className="pb-12">
-          {/* =====================================================
-              STEP 1 — GENDER
-          ===================================================== */}
-          <section className="border-b border-gray-100 px-5 py-5">
-            <div className="flex items-start gap-5">
-              <span className="w-5 shrink-0 text-[12px] font-bold text-black">
-                1
-              </span>
+        <div className="px-6 py-6 space-y-6">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <Segmented
+              value={gender}
+              onChange={setGender}
+              options={[
+                { value: 'women', label: 'Women' },
+                { value: 'men', label: 'Men' },
+                { value: 'girls', label: 'Girls' },
+                { value: 'boys', label: 'Boys' },
+              ]}
+            />
+            <Segmented
+              value={unit}
+              onChange={setUnit}
+              options={[{ value: 'CM', label: 'CM' }, { value: 'INCH', label: 'IN' }]}
+            />
+          </div>
 
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[12px] font-bold lowercase text-gray-900">
-                    gender:{' '}
-                    <span className="font-bold">
-                      {gender}
-                    </span>
-                  </h3>
+          <Segmented
+            value={category}
+            onChange={setCategory}
+            options={[
+              { value: 'tops', label: 'Tops' },
+              { value: 'bottoms', label: 'Bottoms' },
+              { value: 'shoes', label: 'Shoes' },
+              { value: 'belts', label: 'Belts' },
+            ]}
+          />
 
-                  <span className="text-gray-400 text-[16px]">
-                    −
-                  </span>
-                </div>
+          {/* Body diagram */}
+          <div className="flex justify-center py-4">
+            <div className="relative w-[180px] h-[300px] opacity-[0.9]">
+              <svg viewBox="0 0 180 300" className="w-full h-full">
+                <ellipse cx="90" cy="30" rx="26" ry="30" fill="#f1f1f1" />
+                <rect x="55" y="60" width="70" height="140" rx="30" fill="#f1f1f1" />
+                <rect x="25" y="70" width="22" height="130" rx="11" fill="#f1f1f1" transform="rotate(6 36 135)" />
+                <rect x="133" y="70" width="22" height="130" rx="11" fill="#f1f1f1" transform="rotate(-6 144 135)" />
+                <rect x="60" y="195" width="26" height="95" rx="13" fill="#f1f1f1" />
+                <rect x="94" y="195" width="26" height="95" rx="13" fill="#f1f1f1" />
+                {(['Chest', 'Waist', 'Hip'] as const).map((label, i) => {
+                  const y = 95 + i * 45;
+                  return (
+                    <g key={label}>
+                      <line x1="20" y1={y} x2="160" y2={y} stroke={ACCENT} strokeWidth="1" strokeDasharray="3 3" />
+                      <text x="90" y={y - 6} textAnchor="middle" fontSize="10" fill={ACCENT} fontWeight={600}>
+                        {label.toUpperCase()}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          </div>
 
-                <div className="mt-5 flex flex-col items-center gap-4">
-                  {(
-                    [
-                      ['women', 'Women'],
-                      ['men', 'Men'],
-                      ['girls', 'Girls'],
-                      ['boys', 'Boys'],
-                    ] as [Gender, string][]
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setGender(value)}
-                      className={`
-                        text-[13px]
-                        leading-none
-                        transition-all
-                        ${
-                          gender === value
-                            ? 'font-bold text-black underline underline-offset-4'
-                            : 'font-normal text-gray-300 hover:text-gray-600'
-                        }
-                      `}
-                    >
-                      {label}
-                    </button>
+          {/* Size cards */}
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 mb-3">
+              {category} size chart
+            </p>
+            <div className="space-y-2">
+              {isTop
+                ? TOP_SIZES.map(row => (
+                    <div key={row.size} className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <span className="text-sm font-semibold w-12">{row.size}</span>
+                      <div className="flex gap-6 text-xs text-gray-500">
+                        <span>Chest {fmt(row.chest)}</span>
+                        <span>Waist {fmt(row.waist)}</span>
+                        <span>Hip {fmt(row.hip)}</span>
+                      </div>
+                    </div>
+                  ))
+                : BOTTOM_SIZES.map(row => (
+                    <div key={row.size} className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <span className="text-sm font-semibold w-12">{row.size}</span>
+                      <div className="flex gap-6 text-xs text-gray-500">
+                        <span>Waist {fmt(row.waist)}</span>
+                        <span>Hip {fmt(row.hip)}</span>
+                        <span>Inseam {fmt(row.inseam)}</span>
+                      </div>
+                    </div>
                   ))}
-                </div>
-              </div>
             </div>
-          </section>
+          </div>
 
-          {/* =====================================================
-              STEP 2 — CATEGORY
-          ===================================================== */}
-          <section className="border-b border-gray-100 px-5 py-5">
-            <div className="flex items-start gap-5">
-              <span className="w-5 shrink-0 text-[12px] font-bold text-black">
-                2
-              </span>
-
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[12px] font-bold lowercase text-gray-900">
-                    category:{' '}
-                    <span className="font-bold">
-                      {category}
-                    </span>
-                  </h3>
-
-                  <span className="text-gray-400 text-[16px]">
-                    −
-                  </span>
-                </div>
-
-                <div className="mt-5 flex flex-col items-center gap-4">
-                  {(
-                    [
-                      ['bottoms', 'Bottoms / Jeans'],
-                      ['tops', 'Tops'],
-                      ['shoes', 'Shoes'],
-                      ['belts', 'Belts'],
-                    ] as [Category, string][]
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setCategory(value)}
-                      className={`
-                        text-[13px]
-                        leading-none
-                        transition-all
-                        ${
-                          category === value
-                            ? 'font-bold text-black underline underline-offset-4'
-                            : 'font-normal text-gray-300 hover:text-gray-600'
-                        }
-                      `}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* =====================================================
-              STEP 3 — SIZE
-          ===================================================== */}
-          <section className="px-5 pt-5">
-            <div className="flex items-start gap-5">
-              <span className="w-5 shrink-0 text-[12px] font-bold text-black">
-                3
-              </span>
-
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[12px] font-bold lowercase text-gray-900">
-                    your size
-                  </h3>
-
-                  <span className="text-gray-400 text-[16px]">
-                    −
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  className="mt-4 text-[13px] font-bold text-black underline underline-offset-4"
-                >
-                  s, m, l, ...
-                </button>
-
-                {/* =================================================
-                    SIZE SELECTOR
-                ================================================= */}
-                <div className="mt-6 grid grid-cols-3 gap-x-5 gap-y-3 max-w-[245px]">
-                  {isTop
-                    ? TOP_SIZES.map((item) => (
-                        <button
-                          key={item.size}
-                          type="button"
-                          className="flex items-center gap-2 text-left group"
-                        >
-                          <span className="h-[22px] w-[22px] bg-gray-200 group-hover:bg-gray-300 transition-colors" />
-
-                          <span className="text-[12px] font-bold text-gray-700">
-                            {item.size}
-                          </span>
-                        </button>
-                      ))
-                    : BOTTOM_SIZES.map((item) => (
-                        <button
-                          key={item.size}
-                          type="button"
-                          className="flex items-center gap-2 text-left group"
-                        >
-                          <span className="h-[22px] w-[22px] bg-gray-200 group-hover:bg-gray-300 transition-colors" />
-
-                          <span className="text-[12px] font-bold text-gray-700">
-                            {item.size}
-                          </span>
-                        </button>
-                      ))}
-                </div>
-              </div>
-            </div>
-
-            {/* =====================================================
-                BODY MEASUREMENT GUIDE
-            ===================================================== */}
-            <div className="mt-8 flex justify-center">
-              <div className="relative w-[240px] h-[440px]">
-                {/* Body silhouette */}
-                <div className="absolute inset-x-0 top-0 flex justify-center">
-                  <div className="relative w-[170px] h-[430px] opacity-[0.11]">
-                    {/* Head */}
-                    <div className="absolute left-1/2 -translate-x-1/2 top-0 w-[52px] h-[65px] rounded-[45%] bg-gray-400" />
-
-                    {/* Neck */}
-                    <div className="absolute left-1/2 -translate-x-1/2 top-[55px] w-[35px] h-[35px] bg-gray-400" />
-
-                    {/* Torso */}
-                    <div
-                      className="
-                        absolute
-                        left-1/2
-                        -translate-x-1/2
-                        top-[78px]
-                        w-[105px]
-                        h-[205px]
-                        bg-gray-400
-                        rounded-t-[48px]
-                        rounded-b-[22px]
-                      "
-                    />
-
-                    {/* Left arm */}
-                    <div
-                      className="
-                        absolute
-                        left-[15px]
-                        top-[92px]
-                        w-[38px]
-                        h-[230px]
-                        bg-gray-400
-                        rounded-[25px]
-                        rotate-[8deg]
-                      "
-                    />
-
-                    {/* Right arm */}
-                    <div
-                      className="
-                        absolute
-                        right-[15px]
-                        top-[92px]
-                        w-[38px]
-                        h-[230px]
-                        bg-gray-400
-                        rounded-[25px]
-                        -rotate-[8deg]
-                      "
-                    />
-
-                    {/* Left leg */}
-                    <div
-                      className="
-                        absolute
-                        left-[45px]
-                        top-[260px]
-                        w-[45px]
-                        h-[170px]
-                        bg-gray-400
-                        rounded-b-[20px]
-                      "
-                    />
-
-                    {/* Right leg */}
-                    <div
-                      className="
-                        absolute
-                        right-[45px]
-                        top-[260px]
-                        w-[45px]
-                        h-[170px]
-                        bg-gray-400
-                        rounded-b-[20px]
-                      "
-                    />
-                  </div>
-                </div>
-
-                {/* Chest measurement */}
-                <div className="absolute top-[135px] left-[20px] right-[20px]">
-                  <div className="h-px bg-gray-300" />
-
-                  <div className="absolute left-1/2 -translate-x-1/2 -top-[9px] flex items-center gap-2 bg-white px-2">
-                    <span className="w-[15px] h-[15px] rounded-full bg-black text-white flex items-center justify-center">
-                      <Info size={9} />
-                    </span>
-
-                    <span className="text-[11px] font-bold text-gray-700">
-                      chest
-                    </span>
-                  </div>
-                </div>
-
-                {/* Waist measurement */}
-                <div className="absolute top-[225px] left-[20px] right-[20px]">
-                  <div className="h-px bg-gray-300" />
-
-                  <div className="absolute left-1/2 -translate-x-1/2 -top-[9px] flex items-center gap-2 bg-white px-2">
-                    <span className="w-[15px] h-[15px] rounded-full bg-black text-white flex items-center justify-center">
-                      <Info size={9} />
-                    </span>
-
-                    <span className="text-[11px] font-bold text-gray-700">
-                      waist
-                    </span>
-                  </div>
-                </div>
-
-                {/* Hip measurement */}
-                <div className="absolute top-[280px] left-[20px] right-[20px]">
-                  <div className="h-px bg-gray-300" />
-
-                  <div className="absolute left-1/2 -translate-x-1/2 -top-[9px] flex items-center gap-2 bg-white px-2">
-                    <span className="w-[15px] h-[15px] rounded-full bg-black text-white flex items-center justify-center">
-                      <Info size={9} />
-                    </span>
-
-                    <span className="text-[11px] font-bold text-gray-700">
-                      hip
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* =====================================================
-                UNIT SWITCH
-            ===================================================== */}
-            <div className="flex justify-center mt-2">
-              <div className="inline-flex border border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setUnit('CM')}
-                  className={`
-                    px-5
-                    py-2.5
-                    text-[11px]
-                    font-bold
-                    tracking-wide
-                    transition-colors
-                    ${
-                      unit === 'CM'
-                        ? 'bg-white text-black'
-                        : 'bg-gray-200 text-white'
-                    }
-                  `}
-                >
-                  CM
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setUnit('INCH')}
-                  className={`
-                    px-5
-                    py-2.5
-                    text-[11px]
-                    font-bold
-                    tracking-wide
-                    transition-colors
-                    ${
-                      unit === 'INCH'
-                        ? 'bg-white text-black'
-                        : 'bg-gray-200 text-white'
-                    }
-                  `}
-                >
-                  INCH
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* =====================================================
-              SIZE TABLE
-          ===================================================== */}
-          <section className="mt-8 bg-gray-50 px-5 pt-6 pb-10">
-            <h2 className="text-[28px] leading-none font-bold lowercase text-black text-center mb-8">
-              size table
-            </h2>
-
-            {isTop ? (
-              <div className="w-full overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr>
-                      <th className="pb-4 pr-3 text-[10px] font-bold text-gray-700">
-                        size
-                      </th>
-
-                      <th className="pb-4 px-2 text-[10px] font-bold text-gray-700">
-                        chest
-                      </th>
-
-                      <th className="pb-4 px-2 text-[10px] font-bold text-gray-700">
-                        waist
-                      </th>
-
-                      <th className="pb-4 pl-2 text-[10px] font-bold text-gray-700">
-                        hip
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {TOP_SIZES.map((row) => (
-                      <tr key={row.size}>
-                        <td className="py-2.5 pr-3 align-top">
-                          <span className="text-[11px] font-bold text-gray-800">
-                            {row.size}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 px-2 align-top">
-                          <span className="block text-[11px] text-gray-400 leading-4">
-                            {formatMeasurement(row.chest)}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 px-2 align-top">
-                          <span className="block text-[11px] text-gray-400 leading-4">
-                            {formatMeasurement(row.waist)}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 pl-2 align-top">
-                          <span className="block text-[11px] text-gray-400 leading-4">
-                            {formatMeasurement(row.hip)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="w-full overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr>
-                      <th className="pb-4 pr-3 text-[10px] font-bold text-gray-700">
-                        size
-                      </th>
-
-                      <th className="pb-4 px-2 text-[10px] font-bold text-gray-700">
-                        waist
-                      </th>
-
-                      <th className="pb-4 px-2 text-[10px] font-bold text-gray-700">
-                        hip
-                      </th>
-
-                      <th className="pb-4 pl-2 text-[10px] font-bold text-gray-700">
-                        inseam
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {BOTTOM_SIZES.map((row) => (
-                      <tr key={row.size}>
-                        <td className="py-2.5 pr-3">
-                          <span className="text-[11px] font-bold text-gray-800">
-                            {row.size}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 px-2">
-                          <span className="text-[11px] text-gray-400">
-                            {formatMeasurement(row.waist)}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 px-2">
-                          <span className="text-[11px] text-gray-400">
-                            {formatMeasurement(row.hip)}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 pl-2">
-                          <span className="text-[11px] text-gray-400">
-                            {formatMeasurement(row.inseam)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </main>
+          <div className="flex items-start gap-2 text-[11px] text-gray-400 bg-gray-50 rounded-xl p-3">
+            <Info size={13} className="mt-0.5 shrink-0" />
+            <span>Measurements are body measurements, not garment measurements. If between sizes, size up for a relaxed streetwear fit.</span>
+          </div>
+        </div>
       </div>
     </div>
   );

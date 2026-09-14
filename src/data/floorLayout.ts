@@ -342,12 +342,6 @@ export const getFloorSlot = (index: number): FloorSlot => {
 /**
  * Returns the first slot in FLOOR_LAYOUT not currently occupied by any
  * existing product's position, so deleted/gap positions get backfilled
- * before new slots are used. Falls back to cycling by count if every
- * slot in one full cycle is taken.
- */
-/**
- * Returns the first slot in FLOOR_LAYOUT not currently occupied by any
- * existing product's position, so deleted/gap positions get backfilled
  * before new slots are used.
  *
  * When every base slot is occupied, the function starts a new layout lap

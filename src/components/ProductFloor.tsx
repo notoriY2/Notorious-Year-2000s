@@ -127,6 +127,10 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
   viewMode,
   onViewModeChange,
 }) => {
+  const parseVh = (calcStr: string): number => {
+  const match = calcStr.match(/(-?\d+(\.\d+)?)vh/);
+  return match ? parseFloat(match[1]) : 0;
+};
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   /* =========================================================
@@ -420,16 +424,15 @@ const ProductFloor: React.FC<ProductFloorProps> = ({
       floorEligibleProducts.length / 3
     );
 
-  const desktopHeightVh =
-    150 +
-    Math.max(
-      0,
-      desktopRows - 3
-    ) *
-      46.5;
+    const desktopHeightVh = Math.max(
+  150,
+  Math.max(0, ...floorEligibleProducts.map(p => parseVh(p.position.top))) + 40
+);
 
-  const mobileHeightVh =
-  55 + Math.max(0, mobileRows - 1) * 22.5;
+  const mobileHeightVh = Math.max(
+  55,
+  Math.max(0, ...floorEligibleProducts.map(p => parseVh(p.mobilePosition?.top ?? p.position.top))) + 40
+);
 
   /* =========================================================
      HERO CTA

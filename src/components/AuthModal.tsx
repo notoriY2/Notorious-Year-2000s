@@ -258,26 +258,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
               </svg>
               <span className="text-sm font-medium">Continue with Google</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => handleProviderClick('facebook')}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center space-x-3 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50"
-            >
-              <Facebook size={20} className="text-blue-600" />
-              <span className="text-sm font-medium">Continue with Facebook</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleProviderClick('instagram')}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center space-x-3 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50"
-            >
-              <Instagram size={20} className="text-pink-600" />
-              <span className="text-sm font-medium">Continue with Instagram</span>
-            </button>
           </div>
 
           <div className="relative">
