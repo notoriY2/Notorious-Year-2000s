@@ -806,31 +806,6 @@ const MyAccount: React.FC<MyAccountProps> = ({
   };
 
 
-  {/* Add Card Modal Form */}
-<form onSubmit={handleAddCard} className="space-y-4 p-6">
-  <h3 className="text-lg font-light tracking-wide mb-4">Add Payment Method</h3>
-
-  {/* Card number field with demo mode warning */}
-  <div className="space-y-1">
-    <input
-      type="text"
-      inputMode="numeric"
-      autoComplete="cc-number"
-      placeholder="Card number"
-      value={cardNumber}
-      onChange={(e) => setCardNumber(e.target.value)}
-      className="w-full h-12 px-4 border border-gray-300 focus:outline-none focus:border-black font-light"
-      required
-    />
-    
-    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-      Demo mode — no real charge is made and card details aren't sent anywhere. Do not enter a real card number.
-    </div>
-  </div>
-
-  {/* Additional form fields (Expiry, CVC, etc.) go here */}
-</form>
-
   const handleCreateReturn = async (
     e: React.FormEvent
   ) => {
