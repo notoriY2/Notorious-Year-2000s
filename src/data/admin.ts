@@ -685,12 +685,13 @@ export const createAdminCampaign = async (
   const { data, error } = await supabase
     .from('campaigns')
     .insert({
-      name: campaign.name.trim(),
-      subject: campaign.subject?.trim() || null,
-      audience: campaign.audience || 'All Customers',
-      scheduled_at: campaign.scheduledAt || null,
-      status: campaign.status ?? 'Draft',
-    })
+  name: campaign.name.trim(),
+  subject: campaign.subject?.trim() || null,
+  audience: campaign.audience || 'All Customers',
+  scheduled_at: campaign.scheduledAt || null,
+  status: campaign.status ?? 'Draft',
+  body_html: campaign.bodyHtml?.trim() || '',
+})
     .select('*')
     .single();
 
@@ -715,6 +716,23 @@ export const createAdminCampaign = async (
   };
 };
   
+
+export const sendCampaign = async (
+  campaignId: string
+): Promise<{ sent: number; total: number }> => {
+  const { data, error } = await supabase.functions.invoke('send-campaign', {
+    body: { campaignId },
+  });
+
+  if (error) {
+    const detail = await (error as any).context?.json?.().catch(() => null);
+    throw new Error(detail?.error ?? error.message);
+  }
+
+  invalidateAdminCache('campaigns:');
+
+  return data as { sent: number; total: number };
+};
 
 /**
  * Loads the canonical size taxonomy from category_sizes. Cached with
@@ -1676,6 +1694,7 @@ export interface CreateCampaignInput {
   audience?: string;
   scheduledAt?: string;
   status?: 'Draft' | 'Active' | 'Completed';
+  bodyHtml?: string;
 }
 
 // ============================================================

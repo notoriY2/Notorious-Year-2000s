@@ -38,6 +38,7 @@ import {
   getAdminAbandonedCarts,
   createAdminDiscount,
   createAdminCampaign,
+  sendCampaign,
   markAbandonedCartRecovered,
   getAbandonedCartRecoveryRate,
 } from '../../../data/admin';
@@ -54,7 +55,10 @@ import { supabase } from '../../../lib/supabase';
 const FONT = "'Helvetica Neue', Arial, sans-serif";
 const ACCENT = '#C44D2B';
 
-export type MarketingTab = 'discounts' | 'campaigns' | 'abandoned';
+export type MarketingTab =
+  | 'discounts'
+  | 'campaigns'
+  | 'abandoned';
 
 interface AdminMarketingProps {
   initialTab?: MarketingTab;
@@ -82,12 +86,23 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
   }, [initialTab]);
 
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] =
+    useState<string | null>(null);
+
   const [recoverySent, setRecoverySent] = useState<string[]>([]);
 
-  const [showNewCampaignModal, setShowNewCampaignModal] = useState(false);
-  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
-  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showNewCampaignModal, setShowNewCampaignModal] =
+    useState(false);
+
+  const [showRecoveryModal, setShowRecoveryModal] =
+    useState(false);
+
+  const [showDiscountModal, setShowDiscountModal] =
+    useState(false);
+
+  const [sendingCampaignId, setSendingCampaignId] =
+    useState<string | null>(null);
+
   const { showToast } = useAdminToast();
   const isViewer = useIsViewer();
 
@@ -109,7 +124,9 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
   const [discounts, setDiscounts] = useState<AdminDiscount[]>([]);
   const [campaigns, setCampaigns] = useState<AdminCampaign[]>([]);
-  const [abandonedCarts, setAbandonedCarts] = useState<AdminAbandonedCart[]>([]);
+  const [abandonedCarts, setAbandonedCarts] =
+    useState<AdminAbandonedCart[]>([]);
+
   const [recoveryRate, setRecoveryRate] = useState(0);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -119,12 +136,14 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
   useEffect(() => {
     if (!isActive) return;
+
     let cancelled = false;
 
-        const loadMarketingData = async () => {
+    const loadMarketingData = async () => {
       if (!hasLoadedOnce) {
         setIsLoading(true);
       }
+
       setError(null);
 
       try {
@@ -173,7 +192,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, isActive]);
+  }, [reloadKey, isActive, hasLoadedOnce]);
 
   /* ─────────────────────────────────────────────
      Campaign analytics
@@ -202,15 +221,20 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
     const openRate =
       campaigns.length > 0
-        ? campaigns.reduce((sum, campaign) => sum + campaign.openRate, 0) /
-          campaigns.length
+        ? campaigns.reduce(
+            (sum, campaign) => sum + campaign.openRate,
+            0
+          ) / campaigns.length
         : 0;
 
-    const clickRate = emailsSent > 0 ? (clicks / emailsSent) * 100 : 0;
+    const clickRate =
+      emailsSent > 0 ? (clicks / emailsSent) * 100 : 0;
 
-    const orderRate = emailsSent > 0 ? (orders / emailsSent) * 100 : 0;
+    const orderRate =
+      emailsSent > 0 ? (orders / emailsSent) * 100 : 0;
 
-    const revenuePerEmail = emailsSent > 0 ? revenue / emailsSent : 0;
+    const revenuePerEmail =
+      emailsSent > 0 ? revenue / emailsSent : 0;
 
     return {
       emailsSent,
@@ -244,7 +268,8 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
         ? totalValue / abandonedCarts.length
         : 0;
 
-    const estimatedRecovery = totalValue * (recoveryRate / 100);
+    const estimatedRecovery =
+      totalValue * (recoveryRate / 100);
 
     return {
       count: abandonedCarts.length,
@@ -255,21 +280,41 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
     };
   }, [abandonedCarts, recoveryRate]);
 
+  /* ─────────────────────────────────────────────
+     Recovery email
+  ───────────────────────────────────────────── */
+
   const handleRecoveryEmail = async (id: string) => {
     if (isViewer) {
-      showToast('error', "You don't have permission to make changes (Viewer role).");
+      showToast(
+        'error',
+        "You don't have permission to make changes (Viewer role)."
+      );
       return;
     }
 
-    setRecoverySent(prev => (prev.includes(id) ? prev : [...prev, id]));
+    setRecoverySent(prev =>
+      prev.includes(id) ? prev : [...prev, id]
+    );
+
     try {
       await markAbandonedCartRecovered(id);
-      const nextRate = await getAbandonedCartRecoveryRate();
+
+      const nextRate =
+        await getAbandonedCartRecoveryRate();
+
       setRecoveryRate(nextRate);
-      setReloadKey(k => k + 1); // refresh recoveryRate + list
+
+      setReloadKey(k => k + 1);
     } catch {
-      setRecoverySent(prev => prev.filter(x => x !== id)); // revert optimistic UI
-      showToast('error', 'Failed to mark cart as recovered.');
+      setRecoverySent(prev =>
+        prev.filter(x => x !== id)
+      );
+
+      showToast(
+        'error',
+        'Failed to mark cart as recovered.'
+      );
     }
   };
 
@@ -277,11 +322,19 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
     cart => !recoverySent.includes(cart.id)
   ).length;
 
+  /* ─────────────────────────────────────────────
+     Create discount
+  ───────────────────────────────────────────── */
+
   const handleCreateDiscount = async () => {
     if (isViewer) {
-    showToast('error', "You don't have permission to make changes (Viewer role).");
-    return;
-  }
+      showToast(
+        'error',
+        "You don't have permission to make changes (Viewer role)."
+      );
+      return;
+    }
+
     if (discountSaving) return;
 
     if (!discountForm.code.trim()) {
@@ -289,7 +342,10 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
       return;
     }
 
-    if (discountForm.type !== 'Free Shipping' && !discountForm.value.trim()) {
+    if (
+      discountForm.type !== 'Free Shipping' &&
+      !discountForm.value.trim()
+    ) {
       setError('Discount value is required.');
       return;
     }
@@ -301,17 +357,22 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
       await createAdminDiscount({
         code: discountForm.code.trim().toUpperCase(),
         type: discountForm.type,
-        value: discountForm.type === 'Free Shipping'
-          ? 0
-          : Number(discountForm.value),
-        minOrder: discountForm.minOrder === ''
-          ? 0
-          : Number(discountForm.minOrder),
-        startsAt: discountForm.startDate || undefined,
-        endsAt: discountForm.endDate || undefined,
-        usageLimit: discountForm.usageLimit === ''
-          ? undefined
-          : Number(discountForm.usageLimit),
+        value:
+          discountForm.type === 'Free Shipping'
+            ? 0
+            : Number(discountForm.value),
+        minOrder:
+          discountForm.minOrder === ''
+            ? 0
+            : Number(discountForm.minOrder),
+        startsAt:
+          discountForm.startDate || undefined,
+        endsAt:
+          discountForm.endDate || undefined,
+        usageLimit:
+          discountForm.usageLimit === ''
+            ? undefined
+            : Number(discountForm.usageLimit),
       });
 
       setDiscountForm({
@@ -327,7 +388,11 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
       setShowCreate(false);
       setReloadKey(current => current + 1);
     } catch (err) {
-      console.error('Failed to create discount:', err);
+      console.error(
+        'Failed to create discount:',
+        err
+      );
+
       setError(
         err instanceof Error
           ? err.message
@@ -338,26 +403,75 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
     }
   };
 
+  /* ─────────────────────────────────────────────
+     Create campaign
+  ───────────────────────────────────────────── */
+
   const handleCreateCampaign = async (draft: {
     name: string;
     subject: string;
     audience: string;
     scheduledDate: string;
+    body: string;
   }): Promise<void> => {
     if (isViewer) {
-    showToast('error', "You don't have permission to make changes (Viewer role).");
-    return;
-  }
+      showToast(
+        'error',
+        "You don't have permission to make changes (Viewer role)."
+      );
+      return;
+    }
+
     await createAdminCampaign({
       name: draft.name.trim(),
       subject: draft.subject.trim(),
       audience: draft.audience,
-      scheduledAt: draft.scheduledDate || undefined,
+      scheduledAt:
+        draft.scheduledDate || undefined,
+      bodyHtml: draft.body.trim(),
     });
 
     setShowNewCampaignModal(false);
     setSelectedCampaignId(null);
     setReloadKey(current => current + 1);
+  };
+
+  /* ─────────────────────────────────────────────
+     Send campaign
+  ───────────────────────────────────────────── */
+
+  const handleSendCampaign = async (
+    campaign: AdminCampaign
+  ) => {
+    if (isViewer) {
+      showToast(
+        'error',
+        "You don't have permission to make changes (Viewer role)."
+      );
+      return;
+    }
+
+    setSendingCampaignId(campaign.id);
+
+    try {
+      const result = await sendCampaign(campaign.id);
+
+      showToast(
+        'success',
+        `Sent to ${result.sent} of ${result.total} opted-in recipients.`
+      );
+
+      setReloadKey(k => k + 1);
+    } catch (err) {
+      showToast(
+        'error',
+        err instanceof Error
+          ? err.message
+          : 'Failed to send campaign.'
+      );
+    } finally {
+      setSendingCampaignId(null);
+    }
   };
 
   const selectedCampaign = campaigns.find(
@@ -378,7 +492,8 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
     },
     abandoned: {
       title: 'Abandoned Carts',
-      subtitle: 'Recover lost revenue from abandoned carts',
+      subtitle:
+        'Recover lost revenue from abandoned carts',
     },
   };
 
@@ -386,7 +501,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
      Loading state
   ───────────────────────────────────────────── */
 
-    if (isLoading && !hasLoadedOnce) {
+  if (isLoading && !hasLoadedOnce) {
     return (
       <div style={{ fontFamily: FONT }}>
         <PageTitle
@@ -432,7 +547,10 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
         <div className="border border-gray-200 bg-white p-8">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 bg-red-50 flex items-center justify-center shrink-0">
-              <AlertCircle size={18} className="text-red-500" />
+              <AlertCircle
+                size={18}
+                className="text-red-500"
+              />
             </div>
 
             <div className="flex-1">
@@ -446,7 +564,9 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
               <button
                 type="button"
-                onClick={() => setReloadKey(current => current + 1)}
+                onClick={() =>
+                  setReloadKey(current => current + 1)
+                }
                 className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-xs tracking-wide hover:bg-black transition-colors"
               >
                 <RefreshCw size={13} />
@@ -465,32 +585,42 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
   return (
     <div style={{ fontFamily: FONT }}>
-
       <PageTitle
         title={pageTitles[tab].title}
         subtitle={pageTitles[tab].subtitle}
       />
 
       {/* Modals */}
+
       {showNewCampaignModal && (
         <NewCampaignModal
-          onClose={() => setShowNewCampaignModal(false)}
+          onClose={() =>
+            setShowNewCampaignModal(false)
+          }
           onCreate={handleCreateCampaign}
         />
       )}
+
       {showRecoveryModal && (
         <RecoveryEmailModal
           cartCount={pendingCartCount}
-          onClose={() => setShowRecoveryModal(false)}
+          onClose={() =>
+            setShowRecoveryModal(false)
+          }
           onSend={() => {
-            abandonedCarts.forEach(cart => handleRecoveryEmail(cart.id));
+            abandonedCarts.forEach(cart =>
+              handleRecoveryEmail(cart.id)
+            );
           }}
         />
       )}
+
       {showDiscountModal && (
         <OfferDiscountModal
           cartCount={pendingCartCount}
-          onClose={() => setShowDiscountModal(false)}
+          onClose={() =>
+            setShowDiscountModal(false)
+          }
         />
       )}
 
@@ -500,27 +630,32 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
       {tab === 'discounts' && (
         <div className="space-y-6">
-
           <div className="flex justify-end">
             <AdminButton
-  onClick={() => setShowCreate(!showCreate)}
-  disabled={isViewer}
->
-  <Plus size={14} className="inline mr-1" />
-  Create Discount
-</AdminButton>
+              onClick={() =>
+                setShowCreate(!showCreate)
+              }
+              disabled={isViewer}
+            >
+              <Plus
+                size={14}
+                className="inline mr-1"
+              />
+              Create Discount
+            </AdminButton>
           </div>
 
           {showCreate && (
             <SectionCard title="Create Discount Code">
-
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-
                 <AdminInput
                   label="Code"
                   value={discountForm.code}
                   onChange={value =>
-                    setDiscountForm(prev => ({ ...prev, code: value }))
+                    setDiscountForm(prev => ({
+                      ...prev,
+                      code: value,
+                    }))
                   }
                   placeholder="SUMMER20"
                 />
@@ -531,7 +666,8 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   onChange={value =>
                     setDiscountForm(prev => ({
                       ...prev,
-                      type: value as DiscountForm['type'],
+                      type:
+                        value as DiscountForm['type'],
                     }))
                   }
                   options={[
@@ -554,7 +690,10 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   label="Value"
                   value={discountForm.value}
                   onChange={value =>
-                    setDiscountForm(prev => ({ ...prev, value }))
+                    setDiscountForm(prev => ({
+                      ...prev,
+                      value,
+                    }))
                   }
                   type="number"
                   placeholder="20"
@@ -564,7 +703,10 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   label="Min Order (R)"
                   value={discountForm.minOrder}
                   onChange={value =>
-                    setDiscountForm(prev => ({ ...prev, minOrder: value }))
+                    setDiscountForm(prev => ({
+                      ...prev,
+                      minOrder: value,
+                    }))
                   }
                   type="number"
                   placeholder="0"
@@ -574,7 +716,10 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   label="Start Date"
                   value={discountForm.startDate}
                   onChange={value =>
-                    setDiscountForm(prev => ({ ...prev, startDate: value }))
+                    setDiscountForm(prev => ({
+                      ...prev,
+                      startDate: value,
+                    }))
                   }
                   type="date"
                 />
@@ -583,7 +728,10 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   label="End Date"
                   value={discountForm.endDate}
                   onChange={value =>
-                    setDiscountForm(prev => ({ ...prev, endDate: value }))
+                    setDiscountForm(prev => ({
+                      ...prev,
+                      endDate: value,
+                    }))
                   }
                   type="date"
                 />
@@ -592,20 +740,28 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   label="Usage Limit"
                   value={discountForm.usageLimit}
                   onChange={value =>
-                    setDiscountForm(prev => ({ ...prev, usageLimit: value }))
+                    setDiscountForm(prev => ({
+                      ...prev,
+                      usageLimit: value,
+                    }))
                   }
                   type="number"
                   placeholder="100"
                 />
-
               </div>
 
               <div className="flex justify-end gap-3">
                 <AdminButton
                   variant="secondary"
-                  onClick={() => setShowCreate(false)}
+                  onClick={() =>
+                    setShowCreate(false)
+                  }
                   aria-disabled={discountSaving}
-                  className={discountSaving ? 'opacity-50 cursor-not-allowed' : ''}
+                  className={
+                    discountSaving
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }
                 >
                   Cancel
                 </AdminButton>
@@ -613,16 +769,21 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                 <AdminButton
                   onClick={handleCreateDiscount}
                   aria-disabled={discountSaving}
-                  className={discountSaving ? 'opacity-50 cursor-not-allowed' : ''}
+                  className={
+                    discountSaving
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }
                 >
-                  {discountSaving ? 'Creating...' : 'Create'}
+                  {discountSaving
+                    ? 'Creating...'
+                    : 'Create'}
                 </AdminButton>
               </div>
             </SectionCard>
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
             <KPICard
               label="Active Discounts"
               value={String(
@@ -663,14 +824,16 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
               )}
               icon={<RotateCcw size={16} />}
             />
-
           </div>
 
           <SectionCard title="Discount Codes">
-
             {discounts.length === 0 ? (
               <div className="py-16 text-center">
-                <Percent size={22} className="mx-auto text-gray-300" />
+                <Percent
+                  size={22}
+                  className="mx-auto text-gray-300"
+                />
+
                 <p className="text-sm text-gray-500 mt-3">
                   No discount codes yet.
                 </p>
@@ -708,11 +871,14 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                     </td>
 
                     <td className="py-3 px-4 text-sm text-gray-600">
-                      {d.used} / {d.usageLimit ?? '∞'}
+                      {d.used} /{' '}
+                      {d.usageLimit ?? '∞'}
                     </td>
 
                     <td className="py-3 px-4">
-                      <StatusBadge status={d.status} />
+                      <StatusBadge
+                        status={d.status}
+                      />
                     </td>
 
                     <td className="py-3 px-4 text-sm text-gray-600">
@@ -722,7 +888,6 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                 ))}
               </Table>
             )}
-
           </SectionCard>
         </div>
       )}
@@ -733,10 +898,9 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
       {tab === 'campaigns' && (
         <div className="space-y-6">
-
           {/* KPI row */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
 
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
             <KPICard
               label="Emails Sent"
               value={campaignMetrics.emailsSent.toLocaleString()}
@@ -760,12 +924,11 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
               value={`R${campaignMetrics.revenue.toLocaleString()}`}
               icon={<DollarSign size={16} />}
             />
-
           </div>
 
           {/* Performance metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KPICard
               label="Click Rate"
               value={`${campaignMetrics.clickRate.toFixed(2)}%`}
@@ -790,17 +953,17 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
               label="Active Campaigns"
               value={String(
                 campaigns.filter(
-                  campaign => campaign.status === 'Active'
+                  campaign =>
+                    campaign.status === 'Active'
                 ).length
               )}
               icon={<Megaphone size={16} />}
             />
-
           </div>
 
           {/* Revenue chart + campaign summary */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <SectionCard
               title="Campaign Revenue"
               className="xl:col-span-2"
@@ -810,15 +973,19 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   <p className="text-xs text-gray-400 uppercase tracking-[0.18em]">
                     Revenue by campaign
                   </p>
+
                   <p className="mt-2 text-2xl font-[100]">
-                    R{campaignMetrics.revenue.toLocaleString()}
+                    R
+                    {campaignMetrics.revenue.toLocaleString()}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.15em] text-gray-400">
                   <span
                     className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: ACCENT }}
+                    style={{
+                      backgroundColor: ACCENT,
+                    }}
                   />
                   Revenue
                 </div>
@@ -840,9 +1007,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
             </SectionCard>
 
             <SectionCard title="Performance Summary">
-
               <div className="space-y-5">
-
                 {[
                   {
                     label: 'Open rate',
@@ -852,17 +1017,25 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   {
                     label: 'Click rate',
                     value: `${campaignMetrics.clickRate.toFixed(2)}%`,
-                    icon: <MousePointerClick size={14} />,
+                    icon: (
+                      <MousePointerClick
+                        size={14}
+                      />
+                    ),
                   },
                   {
                     label: 'Conversion',
                     value: `${campaignMetrics.orderRate.toFixed(2)}%`,
-                    icon: <ShoppingBag size={14} />,
+                    icon: (
+                      <ShoppingBag size={14} />
+                    ),
                   },
                   {
                     label: 'Revenue / email',
                     value: `R${campaignMetrics.revenuePerEmail.toFixed(2)}`,
-                    icon: <DollarSign size={14} />,
+                    icon: (
+                      <DollarSign size={14} />
+                    ),
                   },
                 ].map(metric => (
                   <div
@@ -884,30 +1057,38 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                     </span>
                   </div>
                 ))}
-
               </div>
             </SectionCard>
-
           </div>
 
           {/* Campaign list */}
+
           <SectionCard
             title="Campaign Performance"
             action={
               <AdminButton
                 size="sm"
                 variant="secondary"
-                onClick={() => setShowNewCampaignModal(true)}
+                onClick={() =>
+                  setShowNewCampaignModal(true)
+                }
+                disabled={isViewer}
               >
-                <Plus size={12} className="inline mr-1" />
+                <Plus
+                  size={12}
+                  className="inline mr-1"
+                />
                 New Campaign
               </AdminButton>
             }
           >
-
             {campaigns.length === 0 ? (
               <div className="py-16 text-center">
-                <Megaphone size={22} className="mx-auto text-gray-300" />
+                <Megaphone
+                  size={22}
+                  className="mx-auto text-gray-300"
+                />
+
                 <p className="text-sm text-gray-500 mt-3">
                   No campaigns yet.
                 </p>
@@ -922,20 +1103,28 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   'Clicks',
                   'Orders',
                   'Revenue',
+                  'Action',
                 ]}
               >
                 {campaigns.map(campaign => {
-
                   const ctr =
                     campaign.emailsSent > 0
-                      ? (campaign.clicks / campaign.emailsSent) * 100
+                      ? (campaign.clicks /
+                          campaign.emailsSent) *
+                        100
                       : 0;
+
+                  const isSending =
+                    sendingCampaignId ===
+                    campaign.id;
 
                   return (
                     <tr
                       key={campaign.id}
                       onClick={() =>
-                        setSelectedCampaignId(campaign.id)
+                        setSelectedCampaignId(
+                          campaign.id
+                        )
                       }
                       className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
                     >
@@ -944,6 +1133,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                           <p className="text-sm text-gray-800">
                             {campaign.name}
                           </p>
+
                           <p className="text-[10px] text-gray-400 mt-1">
                             Click for campaign analytics
                           </p>
@@ -951,7 +1141,9 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                       </td>
 
                       <td className="py-4 px-4">
-                        <StatusBadge status={campaign.status} />
+                        <StatusBadge
+                          status={campaign.status}
+                        />
                       </td>
 
                       <td className="py-4 px-4 text-sm text-gray-600">
@@ -967,6 +1159,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                           <p className="text-sm text-gray-600">
                             {campaign.clicks.toLocaleString()}
                           </p>
+
                           <p className="text-[9px] text-gray-400 mt-1">
                             {ctr.toFixed(2)}% CTR
                           </p>
@@ -978,22 +1171,50 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                       </td>
 
                       <td className="py-4 px-4 text-sm font-light text-gray-900">
-                        R{campaign.revenue.toLocaleString()}
+                        R
+                        {campaign.revenue.toLocaleString()}
+                      </td>
+
+                      {/* Campaign action */}
+
+                      <td
+                        className="py-4 px-4"
+                        onClick={e =>
+                          e.stopPropagation()
+                        }
+                      >
+                        <AdminButton
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            handleSendCampaign(
+                              campaign
+                            )
+                          }
+                          disabled={
+                            isSending || isViewer
+                          }
+                        >
+                          {isSending
+                            ? 'Sending...'
+                            : campaign.status ===
+                              'Draft'
+                            ? 'Send Now'
+                            : 'Resend'}
+                        </AdminButton>
                       </td>
                     </tr>
                   );
                 })}
               </Table>
             )}
-
           </SectionCard>
 
           {/* Campaign detail */}
+
           {selectedCampaign && (
             <SectionCard title="Selected Campaign">
-
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-
                 <KPICard
                   label="Campaign"
                   value={selectedCampaign.name}
@@ -1008,7 +1229,9 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
                 <KPICard
                   label="Orders"
-                  value={String(selectedCampaign.orders)}
+                  value={String(
+                    selectedCampaign.orders
+                  )}
                   icon={<ShoppingBag size={16} />}
                 />
 
@@ -1017,21 +1240,20 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   value={`R${selectedCampaign.revenue.toLocaleString()}`}
                   icon={<DollarSign size={16} />}
                 />
-
               </div>
 
               <div className="mt-5 flex justify-end">
                 <AdminButton
                   variant="secondary"
-                  onClick={() => setSelectedCampaignId(null)}
+                  onClick={() =>
+                    setSelectedCampaignId(null)
+                  }
                 >
                   Close
                 </AdminButton>
               </div>
-
             </SectionCard>
           )}
-
         </div>
       )}
 
@@ -1041,13 +1263,14 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
       {tab === 'abandoned' && (
         <div className="space-y-6">
-
           {/* KPIs */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
 
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
             <KPICard
               label="Abandoned Carts"
-              value={String(abandonedMetrics.count)}
+              value={String(
+                abandonedMetrics.count
+              )}
               icon={<ShoppingBag size={16} />}
             />
 
@@ -1073,30 +1296,30 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
               ).toLocaleString()}`}
               icon={<RotateCcw size={16} />}
             />
-
           </div>
 
           {/* Recovery overview */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <SectionCard
               title="Recovery Opportunity"
               className="xl:col-span-2"
             >
-
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-
                 <div>
                   <p className="text-[9px] uppercase tracking-[0.2em] text-gray-400">
-                    Revenue currently sitting in abandoned carts
+                    Revenue currently sitting in
+                    abandoned carts
                   </p>
 
                   <p className="mt-3 text-4xl font-[100] text-black">
-                    R{abandonedMetrics.totalValue.toLocaleString()}
+                    R
+                    {abandonedMetrics.totalValue.toLocaleString()}
                   </p>
 
                   <p className="mt-2 text-xs text-gray-400 font-light">
-                    {abandonedMetrics.count} abandoned
+                    {abandonedMetrics.count}{' '}
+                    abandoned
                     {abandonedMetrics.count === 1
                       ? ' cart'
                       : ' carts'}
@@ -1104,7 +1327,6 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                 </div>
 
                 <div className="w-full sm:w-56">
-
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[9px] uppercase tracking-[0.15em] text-gray-400">
                       Recovery rate
@@ -1128,26 +1350,24 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                   <p className="text-[9px] text-gray-400 mt-2">
                     Estimated recovery:{' '}
                     <span className="text-gray-700">
-                      R{Math.round(
+                      R
+                      {Math.round(
                         abandonedMetrics.estimatedRecovery
                       ).toLocaleString()}
                     </span>
                   </p>
-
                 </div>
-
               </div>
-
             </SectionCard>
 
             <SectionCard title="Recovery Actions">
-
               <div className="space-y-3">
-
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => setShowRecoveryModal(true)}
+                  onClick={() =>
+                    setShowRecoveryModal(true)
+                  }
                   className="flex items-center gap-3 p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
                 >
                   <Mail
@@ -1159,6 +1379,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                     <p className="text-xs text-gray-800">
                       Recovery Email
                     </p>
+
                     <p className="text-[9px] text-gray-400 mt-1">
                       Remind customers about their cart
                     </p>
@@ -1173,7 +1394,9 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => setShowDiscountModal(true)}
+                  onClick={() =>
+                    setShowDiscountModal(true)
+                  }
                   className="flex items-center gap-3 p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
                 >
                   <Percent
@@ -1185,6 +1408,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                     <p className="text-xs text-gray-800">
                       Offer Discount
                     </p>
+
                     <p className="text-[9px] text-gray-400 mt-1">
                       Incentivize selected customers
                     </p>
@@ -1195,19 +1419,20 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                     className="text-gray-400"
                   />
                 </div>
-
               </div>
-
             </SectionCard>
-
           </div>
 
           {/* Cart table */}
-          <SectionCard title="Abandoned Carts">
 
+          <SectionCard title="Abandoned Carts">
             {abandonedCarts.length === 0 ? (
               <div className="py-16 text-center">
-                <ShoppingBag size={22} className="mx-auto text-gray-300" />
+                <ShoppingBag
+                  size={22}
+                  className="mx-auto text-gray-300"
+                />
+
                 <p className="text-sm text-gray-500 mt-3">
                   No abandoned carts right now.
                 </p>
@@ -1223,17 +1448,16 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                 ]}
               >
                 {abandonedCarts.map(cart => {
-
-                  const wasSent = recoverySent.includes(
-                    cart.id
-                  );
+                  const wasSent =
+                    recoverySent.includes(
+                      cart.id
+                    );
 
                   return (
                     <tr
                       key={cart.id}
                       className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                     >
-
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-gray-100 flex items-center justify-center">
@@ -1247,6 +1471,7 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                             <p className="text-sm text-gray-700">
                               {cart.customerEmail}
                             </p>
+
                             <p className="text-[9px] text-gray-400 mt-1">
                               Customer
                             </p>
@@ -1256,7 +1481,8 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
 
                       <td className="py-4 px-4">
                         <p className="text-sm font-light text-gray-900">
-                          R{cart.cartValue.toLocaleString()}
+                          R
+                          {cart.cartValue.toLocaleString()}
                         </p>
                       </td>
 
@@ -1284,7 +1510,6 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                       </td>
 
                       <td className="py-4 px-4">
-
                         {wasSent ? (
                           <span className="text-[9px] uppercase tracking-[0.15em] text-gray-400">
                             Email Sent
@@ -1294,7 +1519,9 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                             size="sm"
                             variant="secondary"
                             onClick={() =>
-                              handleRecoveryEmail(cart.id)
+                              handleRecoveryEmail(
+                                cart.id
+                              )
                             }
                           >
                             <Send
@@ -1304,55 +1531,87 @@ const AdminMarketing: React.FC<AdminMarketingProps> = ({
                             Recover Cart
                           </AdminButton>
                         )}
-
                       </td>
                     </tr>
                   );
                 })}
               </Table>
             )}
-
           </SectionCard>
-
         </div>
       )}
-
     </div>
   );
 };
 
 /* ── Shared modal chrome: fades/scales in on mount ─────────── */
+
 const useModalEntrance = () => {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] =
+    useState(false);
+
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 10);
+    const t = setTimeout(
+      () => setVisible(true),
+      10
+    );
+
     return () => clearTimeout(t);
   }, []);
+
   return visible;
 };
 
 /* ── New Campaign ───────────────────────────────────────── */
+
 const NewCampaignModal: React.FC<{
   onClose: () => void;
-  onCreate: (draft: { name: string; subject: string; audience: string; scheduledDate: string }) => Promise<void>;
+  onCreate: (draft: {
+    name: string;
+    subject: string;
+    audience: string;
+    scheduledDate: string;
+    body: string;
+  }) => Promise<void>;
 }> = ({ onClose, onCreate }) => {
   const visible = useModalEntrance();
-  const [name, setName] = useState('');
-  const [subject, setSubject] = useState('');
-  const [audience, setAudience] = useState('All Customers');
-  const [scheduledDate, setScheduledDate] = useState('');
-  const [saving, setSaving] = useState(false);
 
-  const canCreate = name.trim() !== '' && subject.trim() !== '';
+  const [name, setName] = useState('');
+  const [subject, setSubject] =
+    useState('');
+  const [audience, setAudience] =
+    useState('All Customers');
+  const [scheduledDate, setScheduledDate] =
+    useState('');
+
+  const [body, setBody] = useState('');
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const canCreate =
+    name.trim() !== '' &&
+    subject.trim() !== '' &&
+    body.trim() !== '';
 
   const handleSubmit = async () => {
     if (!canCreate || saving) return;
 
     setSaving(true);
+
     try {
-      await onCreate({ name, subject, audience, scheduledDate });
+      await onCreate({
+        name,
+        subject,
+        audience,
+        scheduledDate,
+        body,
+      });
     } catch (err) {
-      console.error('Failed to create campaign:', err);
+      console.error(
+        'Failed to create campaign:',
+        err
+      );
     } finally {
       setSaving(false);
     }
@@ -1362,30 +1621,97 @@ const NewCampaignModal: React.FC<{
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
       <div
         className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto transition-all duration-200 ease-out"
-        style={{ opacity: visible ? 1 : 0, transform: visible ? 'scale(1)' : 'scale(0.96)' }}
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: visible
+            ? 'scale(1)'
+            : 'scale(0.96)',
+        }}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-lg font-light text-gray-900">New Campaign</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <h2 className="text-lg font-light text-gray-900">
+            New Campaign
+          </h2>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
-          <AdminInput label="Campaign Name" value={name} onChange={setName} placeholder="Summer Sale Announcement" />
-          <AdminInput label="Subject Line" value={subject} onChange={setSubject} placeholder="Don't miss out — 20% off everything" />
+          <AdminInput
+            label="Campaign Name"
+            value={name}
+            onChange={setName}
+            placeholder="Summer Sale Announcement"
+          />
+
+          <AdminInput
+            label="Subject Line"
+            value={subject}
+            onChange={setSubject}
+            placeholder="Don't miss out — 20% off everything"
+          />
+
           <AdminSelect
             label="Audience"
             value={audience}
             onChange={setAudience}
             options={[
-              { value: 'All Customers', label: 'All Customers' },
-              { value: 'VIP Customers', label: 'VIP Customers' },
-              { value: 'Newsletter Subscribers', label: 'Newsletter Subscribers' },
-              { value: 'Abandoned Cart', label: 'Abandoned Cart Shoppers' },
+              {
+                value: 'All Customers',
+                label: 'All Customers',
+              },
+              {
+                value: 'VIP Customers',
+                label: 'VIP Customers',
+              },
+              {
+                value: 'Newsletter Subscribers',
+                label: 'Newsletter Subscribers',
+              },
+              {
+                value: 'Abandoned Cart',
+                label: 'Abandoned Cart Shoppers',
+              },
             ]}
           />
-          <AdminInput label="Send Date" value={scheduledDate} onChange={setScheduledDate} type="date" />
+
+          <AdminInput
+            label="Send Date"
+            value={scheduledDate}
+            onChange={setScheduledDate}
+            type="date"
+          />
+
+          {/* Email body */}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1 tracking-wide">
+              Email Content (HTML)
+            </label>
+
+            <textarea
+              value={body}
+              onChange={e =>
+                setBody(e.target.value)
+              }
+              rows={6}
+              placeholder="<p>Hey — here's what's new at Notorious.Y2...</p>"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors resize-none font-mono"
+            />
+
+            <p className="text-[11px] text-gray-400 mt-1">
+              Links (href="https://...") are
+              automatically click-tracked. An
+              open-tracking pixel is added
+              automatically.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-gray-200 sticky bottom-0 bg-white">
@@ -1393,21 +1719,41 @@ const NewCampaignModal: React.FC<{
             variant="secondary"
             onClick={onClose}
             aria-disabled={saving}
-            className={saving ? 'opacity-50 cursor-not-allowed' : ''}
+            className={
+              saving
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }
           >
             Cancel
           </AdminButton>
+
           <AdminButton
             onClick={handleSubmit}
-            aria-disabled={!canCreate || saving}
-            className={!canCreate || saving ? 'opacity-50 cursor-not-allowed' : ''}
+            aria-disabled={
+              !canCreate || saving
+            }
+            className={
+              !canCreate || saving
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }
           >
             {saving ? (
-              <Loader2 size={14} className="inline mr-1 animate-spin" />
+              <Loader2
+                size={14}
+                className="inline mr-1 animate-spin"
+              />
             ) : (
-              <Plus size={14} className="inline mr-1" />
+              <Plus
+                size={14}
+                className="inline mr-1"
+              />
             )}
-            {saving ? 'Creating...' : 'Create Campaign'}
+
+            {saving
+              ? 'Creating...'
+              : 'Create Campaign'}
           </AdminButton>
         </div>
       </div>
@@ -1416,26 +1762,46 @@ const NewCampaignModal: React.FC<{
 };
 
 /* ── Recovery Email ─────────────────────────────────────── */
+
 const RecoveryEmailModal: React.FC<{
   cartCount: number;
   onClose: () => void;
   onSend: () => void;
-}> = ({ cartCount, onClose, onSend }) => {
+}> = ({
+  cartCount,
+  onClose,
+  onSend,
+}) => {
   const visible = useModalEntrance();
-  const { showToast } = useAdminToast();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [subject, setSubject] = useState('You left something behind...');
+  const { showToast } =
+    useAdminToast();
+
+  const [isGenerating, setIsGenerating] =
+    useState(false);
+
+  const [subject, setSubject] =
+    useState(
+      'You left something behind...'
+    );
+
   const [body, setBody] = useState(
     "Hey! We noticed you left some items in your cart. They're still waiting for you — come finish checking out before they sell out."
   );
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  const [status, setStatus] =
+    useState<
+      'idle' | 'sending' | 'sent'
+    >('idle');
 
   const handleSend = () => {
     if (cartCount === 0) return;
+
     setStatus('sending');
+
     setTimeout(() => {
       onSend();
       setStatus('sent');
+
       setTimeout(onClose, 900);
     }, 700);
   };
@@ -1444,55 +1810,128 @@ const RecoveryEmailModal: React.FC<{
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
       <div
         className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto transition-all duration-200 ease-out"
-        style={{ opacity: visible ? 1 : 0, transform: visible ? 'scale(1)' : 'scale(0.96)' }}
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: visible
+            ? 'scale(1)'
+            : 'scale(0.96)',
+        }}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-lg font-light text-gray-900">Recovery Email</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <h2 className="text-lg font-light text-gray-900">
+            Recovery Email
+          </h2>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
           <p className="text-xs text-gray-500">
-            This will be sent to <strong className="text-gray-700">{cartCount}</strong> customer{cartCount === 1 ? '' : 's'} with a pending abandoned cart.
+            This will be sent to{' '}
+            <strong className="text-gray-700">
+              {cartCount}
+            </strong>{' '}
+            customer
+            {cartCount === 1
+              ? ''
+              : 's'} with a pending
+            abandoned cart.
           </p>
+
           <div className="flex justify-end">
-  <button
-    type="button"
-    disabled={isGenerating}
-    onClick={async () => {
-      setIsGenerating(true);
-      try {
-        const { data, error } = await supabase.functions.invoke('generate-recovery-email', {
-          body: { cartCount, averageValue: 0 },
-        });
-        if (error) {
-  const detail = await (error as any).context?.json?.().catch(() => null);
-  const errorMessage = detail?.error ?? error.message;
-  console.error('Recovery email error:', errorMessage);
-  showToast('error', errorMessage);
-  return;
-}
-        setSubject(data.subject);
-        setBody(data.body);
-      } catch (err) {
-        console.error('Failed to generate recovery email:', err);
-      } finally {
-        setIsGenerating(false);
-      }
-    }}
-    className="text-xs text-[#C44D2B] hover:underline disabled:opacity-50"
-  >
-    {isGenerating ? 'Generating…' : '✨ Generate copy'}
-  </button>
-</div>
-          <AdminInput label="Subject" value={subject} onChange={setSubject} />
+            <button
+              type="button"
+              disabled={isGenerating}
+              onClick={async () => {
+                setIsGenerating(true);
+
+                try {
+                  const {
+                    data,
+                    error,
+                  } =
+                    await supabase.functions.invoke(
+                      'generate-recovery-email',
+                      {
+                        body: {
+                          cartCount,
+                          averageValue: 0,
+                        },
+                      }
+                    );
+
+                  if (error) {
+                    const detail =
+                      await (
+                        error as any
+                      ).context?.json?.()
+                        .catch(
+                          () => null
+                        );
+
+                    const errorMessage =
+                      detail?.error ??
+                      error.message;
+
+                    console.error(
+                      'Recovery email error:',
+                      errorMessage
+                    );
+
+                    showToast(
+                      'error',
+                      errorMessage
+                    );
+
+                    return;
+                  }
+
+                  setSubject(
+                    data.subject
+                  );
+
+                  setBody(data.body);
+                } catch (err) {
+                  console.error(
+                    'Failed to generate recovery email:',
+                    err
+                  );
+                } finally {
+                  setIsGenerating(
+                    false
+                  );
+                }
+              }}
+              className="text-xs text-[#C44D2B] hover:underline disabled:opacity-50"
+            >
+              {isGenerating
+                ? 'Generating…'
+                : '✨ Generate copy'}
+            </button>
+          </div>
+
+          <AdminInput
+            label="Subject"
+            value={subject}
+            onChange={setSubject}
+          />
+
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1 tracking-wide">Message</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1 tracking-wide">
+              Message
+            </label>
+
             <textarea
               value={body}
-              onChange={e => setBody(e.target.value)}
+              onChange={e =>
+                setBody(e.target.value)
+              }
               rows={5}
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 transition-colors resize-none"
             />
@@ -1501,30 +1940,70 @@ const RecoveryEmailModal: React.FC<{
 
         <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-gray-200 sticky bottom-0 bg-white">
           <AdminButton
-              variant="secondary"
-              onClick={() => {
-                if (status === 'idle') onClose();
-              }}
-              aria-disabled={status !== 'idle'}
-              className={status !== 'idle' ? 'opacity-50 cursor-not-allowed' : ''}
-            >
-              Cancel
-            </AdminButton>
-          <AdminButton
-              onClick={() => {
-                if (status === 'idle' && cartCount > 0) handleSend();
-              }}
-              aria-disabled={status !== 'idle' || cartCount === 0}
-              className={
-                status !== 'idle' || cartCount === 0
-                  ? 'opacity-50 cursor-not-allowed'
-                  : ''
+            variant="secondary"
+            onClick={() => {
+              if (status === 'idle') {
+                onClose();
               }
-            >
-            {status === 'sending' && <Loader2 size={14} className="inline mr-1 animate-spin" />}
-            {status === 'sent' && <CheckCircle2 size={14} className="inline mr-1" />}
-            {status === 'idle' && <Send size={14} className="inline mr-1" />}
-            {status === 'sending' ? 'Sending...' : status === 'sent' ? 'Sent!' : `Send to ${cartCount}`}
+            }}
+            aria-disabled={
+              status !== 'idle'
+            }
+            className={
+              status !== 'idle'
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }
+          >
+            Cancel
+          </AdminButton>
+
+          <AdminButton
+            onClick={() => {
+              if (
+                status === 'idle' &&
+                cartCount > 0
+              ) {
+                handleSend();
+              }
+            }}
+            aria-disabled={
+              status !== 'idle' ||
+              cartCount === 0
+            }
+            className={
+              status !== 'idle' ||
+              cartCount === 0
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }
+          >
+            {status === 'sending' && (
+              <Loader2
+                size={14}
+                className="inline mr-1 animate-spin"
+              />
+            )}
+
+            {status === 'sent' && (
+              <CheckCircle2
+                size={14}
+                className="inline mr-1"
+              />
+            )}
+
+            {status === 'idle' && (
+              <Send
+                size={14}
+                className="inline mr-1"
+              />
+            )}
+
+            {status === 'sending'
+              ? 'Sending...'
+              : status === 'sent'
+              ? 'Sent!'
+              : `Send to ${cartCount}`}
           </AdminButton>
         </div>
       </div>
@@ -1533,21 +2012,38 @@ const RecoveryEmailModal: React.FC<{
 };
 
 /* ── Offer Discount ─────────────────────────────────────── */
+
 const OfferDiscountModal: React.FC<{
   cartCount: number;
   onClose: () => void;
-}> = ({ cartCount, onClose }) => {
+}> = ({
+  cartCount,
+  onClose,
+}) => {
   const visible = useModalEntrance();
-  const [discountType, setDiscountType] = useState('Percentage');
-  const [value, setValue] = useState('10');
-  const [expiryDays, setExpiryDays] = useState('3');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  const [discountType, setDiscountType] =
+    useState('Percentage');
+
+  const [value, setValue] =
+    useState('10');
+
+  const [expiryDays, setExpiryDays] =
+    useState('3');
+
+  const [status, setStatus] =
+    useState<
+      'idle' | 'sending' | 'sent'
+    >('idle');
 
   const handleSend = () => {
     if (cartCount === 0) return;
+
     setStatus('sending');
+
     setTimeout(() => {
       setStatus('sent');
+
       setTimeout(onClose, 900);
     }, 700);
   };
@@ -1556,66 +2052,149 @@ const OfferDiscountModal: React.FC<{
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
       <div
         className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto transition-all duration-200 ease-out"
-        style={{ opacity: visible ? 1 : 0, transform: visible ? 'scale(1)' : 'scale(0.96)' }}
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: visible
+            ? 'scale(1)'
+            : 'scale(0.96)',
+        }}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-lg font-light text-gray-900">Offer Discount</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <h2 className="text-lg font-light text-gray-900">
+            Offer Discount
+          </h2>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
           <p className="text-xs text-gray-500">
-            Send an incentive to <strong className="text-gray-700">{cartCount}</strong> customer{cartCount === 1 ? '' : 's'} with a pending abandoned cart.
+            Send an incentive to{' '}
+            <strong className="text-gray-700">
+              {cartCount}
+            </strong>{' '}
+            customer
+            {cartCount === 1
+              ? ''
+              : 's'} with a pending
+            abandoned cart.
           </p>
+
           <AdminSelect
             label="Discount Type"
             value={discountType}
             onChange={setDiscountType}
             options={[
-              { value: 'Percentage', label: 'Percentage' },
-              { value: 'Fixed', label: 'Fixed Amount' },
-              { value: 'Free Shipping', label: 'Free Shipping' },
+              {
+                value: 'Percentage',
+                label: 'Percentage',
+              },
+              {
+                value: 'Fixed',
+                label: 'Fixed Amount',
+              },
+              {
+                value: 'Free Shipping',
+                label: 'Free Shipping',
+              },
             ]}
           />
-          {discountType !== 'Free Shipping' && (
+
+          {discountType !==
+            'Free Shipping' && (
             <AdminInput
-              label={discountType === 'Percentage' ? 'Value (%)' : 'Value (R)'}
+              label={
+                discountType ===
+                'Percentage'
+                  ? 'Value (%)'
+                  : 'Value (R)'
+              }
               value={value}
               onChange={setValue}
               type="number"
             />
           )}
-          <AdminInput label="Expires In (days)" value={expiryDays} onChange={setExpiryDays} type="number" />
+
+          <AdminInput
+            label="Expires In (days)"
+            value={expiryDays}
+            onChange={setExpiryDays}
+            type="number"
+          />
         </div>
 
         <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-gray-200 sticky bottom-0 bg-white">
           <AdminButton
-              variant="secondary"
-              onClick={() => {
-                if (status === 'idle') onClose();
-              }}
-              aria-disabled={status !== 'idle'}
-              className={status !== 'idle' ? 'opacity-50 cursor-not-allowed' : ''}
-            >
-              Cancel
-            </AdminButton>
-          <AdminButton
-              onClick={() => {
-                if (status === 'idle' && cartCount > 0) handleSend();
-              }}
-              aria-disabled={status !== 'idle' || cartCount === 0}
-              className={
-                status !== 'idle' || cartCount === 0
-                  ? 'opacity-50 cursor-not-allowed'
-                  : ''
+            variant="secondary"
+            onClick={() => {
+              if (status === 'idle') {
+                onClose();
               }
-            >
-            {status === 'sending' && <Loader2 size={14} className="inline mr-1 animate-spin" />}
-            {status === 'sent' && <CheckCircle2 size={14} className="inline mr-1" />}
-            {status === 'idle' && <Percent size={14} className="inline mr-1" />}
-            {status === 'sending' ? 'Sending...' : status === 'sent' ? 'Sent!' : `Send to ${cartCount}`}
+            }}
+            aria-disabled={
+              status !== 'idle'
+            }
+            className={
+              status !== 'idle'
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }
+          >
+            Cancel
+          </AdminButton>
+
+          <AdminButton
+            onClick={() => {
+              if (
+                status === 'idle' &&
+                cartCount > 0
+              ) {
+                handleSend();
+              }
+            }}
+            aria-disabled={
+              status !== 'idle' ||
+              cartCount === 0
+            }
+            className={
+              status !== 'idle' ||
+              cartCount === 0
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }
+          >
+            {status === 'sending' && (
+              <Loader2
+                size={14}
+                className="inline mr-1 animate-spin"
+              />
+            )}
+
+            {status === 'sent' && (
+              <CheckCircle2
+                size={14}
+                className="inline mr-1"
+              />
+            )}
+
+            {status === 'idle' && (
+              <Percent
+                size={14}
+                className="inline mr-1"
+              />
+            )}
+
+            {status === 'sending'
+              ? 'Sending...'
+              : status === 'sent'
+              ? 'Sent!'
+              : `Send to ${cartCount}`}
           </AdminButton>
         </div>
       </div>
